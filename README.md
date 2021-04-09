@@ -1,4 +1,4 @@
-<img src="man/figures/logo.svg" align="right" width="150" /> [![Build status](https://travis-ci.org/YosefLab/VISION.svg?branch=master)](https://travis-ci.org/YosefLab/VISION)
+<img src="https://github.com/YosefLab/VISION/tree/master/man/figures/logo.svg?raw=true" align="right" width="150" /> 
 
 # Functional Interpretation for <br/> scRNA-seq Data
 
