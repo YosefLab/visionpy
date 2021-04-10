@@ -81,3 +81,6 @@ requires = [
   "poetry>=1.0",
   "setuptools", # keep it here or "pip install -e" would fail
 ]
+
+[tool.poetry.scripts]
+visionpy = "visionpy.launch:run"
