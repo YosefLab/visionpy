@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+
+    <meta charset="UTF-8">
+
+    <title>VISION Report</title>
+
+
+    <link rel="icon" type="image/png" href="css/favicon.png">
+    <link rel="stylesheet" href="thirdparty/chosen/chosen.min.css">
+    <link rel="stylesheet" href="thirdparty/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="thirdparty/datatables/datatables.min.css">
+
+    <script type="text/javascript" src="thirdparty/jquery/jquery-2.1.4.min.js"></script>
+    <script type="text/javascript" src="thirdparty/d3/d3.min.js"></script>
+    <script type="text/javascript" src="thirdparty/d3/d3tip.js"></script>
+    <script type="text/javascript" src="thirdparty/jszip/jszip.min.js"></script>
+    <script type="text/javascript" src="thirdparty/lodash/lodash.min.js"></script>
+    <script type="text/javascript" src="thirdparty/chosen/chosen.jquery.min.js"></script>
+    <script type="text/javascript" src="thirdparty/bootstrap/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript" src="thirdparty/datatables/datatables.min.js"></script>
+    <script type="text/javascript" src="thirdparty/popper/popper.js/dist/umd/popper.min.js"></script>
+    <script type="text/javascript" src="thirdparty/plotly/plotly.js-1.45.2/dist/plotly.min.js"></script>
+    <script type="text/javascript" src="thirdparty/hsluv/hsluv-0.1.0.min.js"></script>
+
+
+
+    <script type="text/javascript" src="src/ColorScatterPlotly.js"></script>
+    <script type="text/javascript" src="src/Clustered_HeatMap.js"></script>
+    <script type="text/javascript" src="src/Utilities.js"></script>
+    <script type="text/javascript" src="src/main.js"></script>
+    <script type="text/javascript" src="src/upper_left_content.js"></script>
+    <script type="text/javascript" src="src/lower_left_content.js"></script>
+    <script type="text/javascript" src="src/right_content.js"></script>
+    <script type="text/javascript" src="src/misc.js"></script>
+    <script type="text/javascript" src="src/api.js"></script>
+
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/right_content.css">
+    <link rel="stylesheet" href="css/upper_left_content.css">
+    <link rel="stylesheet" href="css/lower_left_content.css">
+    <link rel="prefetch" href="css/loading.svg">
+
+</head>
+<body>
+    <div id="nav-bar">
+        <div class="logo">
+            <img src="css/logo_HorizontalLogo.svg" alt="VISION" style="width: 200px">
+            <span id="SampleNameSpan"></span>
+        </div>
+        <ul class="nav nav-pills justify-content-end inv">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-main-vis="clusters">Autocorrelation</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#" data-main-vis="pcannotator">LC Annotator</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link disabled" href="#" data-main-vis="tree">Trajectories</a>
+            </li>
+        </ul>
+    </div>
+    <div id="main-content">
+        <div id="left-content">
+            <div id="upper-left-content">
+
+                <div style="display: flex; flex-direction: row; flex-shrink: 0;">
+                    <div>
+                        <select id="cluster-group-select" class="form-control form-control-sm" style="width: 150px;">
+                        </select>
+                    </div>
+                    <div class='section-nav' style="flex-grow: 1">
+                        <ul class="nav nav-pills justify-content-center">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="sig-table-tab" data-toggle="tab" href="#table-div-container" role="tab" aria-controls="sig-table" aria-selected="true">Signatures</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="protein-table-tab" data-toggle="tab" href="#protein-div-container" role="tab" aria-controls="protein-table" aria-selected="true">Proteins</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="meta-table-tab" data-toggle="tab" href="#meta-table-div" role="tab" aria-controls="meta-table" aria-selected="false">Meta</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="genes-table-tab" data-toggle="tab" href="#genes-table" role="tab" aria-controls="genes-table" aria-selected="false">Genes</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="de-table-tab" data-toggle="tab" href="#de-table" role="tab" aria-controls="de-table" aria-selected="false">DE</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="tab-content upper-left-section-content">
+                    <div class="tab-pane show active" id="table-div-container" role="tabpanel" aria-labelledby="sig-table-tab">
+                        <div class="sig-tables-header">
+                            <table class="sig-table">
+                                <thead>
+                                    <tr class="proj-row">
+                                        <th>
+                                            <div>
+                                            <input id="sig_filt_input" class="form-control"
+                                                   type="text" placeholder="Filter Signatures...">
+                                            </input>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="sig-tables-wrapper"></div>
+                    </div>
+                    <div class="tab-pane" id="protein-div-container" role="tabpanel" aria-labelledby="protein-table-tab">
+                        <div class="sig-tables-header">
+                            <table class="sig-table">
+                                <thead>
+                                    <tr class="proj-row">
+                                        <th>
+                                            <div>
+                                            <input id="protein_filt_input" class="form-control"
+                                                   type="text" placeholder="Filter Proteins...">
+                                            </input>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="sig-tables-wrapper">
+                            <div class="sig-table-div">
+                                <table id="protein-table" class="sig-table">
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="meta-table-div" role="tabpanel" aria-labelledby="meta-table-tab">
+                        <div class="sig-tables-header">
+                            <table class="sig-table">
+                                <thead>
+                                    <tr class="proj-row">
+                                        <th style="height: 38px"> <!-- Height matches space of filter input on other pane -->
+                                            <div>Variable Name</div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="sig-tables-wrapper">
+                            <div class="sig-table-div">
+                                <table id="meta-table" class="sig-table">
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="genes-table" role="tabpanel" aria-labelledby="genes-table-tab">
+                        <div>
+                            <table class='label-table'>
+                                <tr>
+                                    <td style='font-size: 1.2em'>Gene:</td>
+                                    <td><select id="SelectGene" class="form-control"></select></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div id='recent-genes-div'>
+                            <div class='label1'>Recent Genes:</div>
+                            <div id='recent-genes-list'>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane" id="de-table" role="tabpanel" aria-labelledby="de-table-tab">
+
+                        <div class="controls">
+                            <div class="group-control">
+                                <div class="label">Group</div>
+                                <select id="num_control" class="form-control"></select>
+                            </div>
+                            <div class="fgbg">
+                                <div>
+                                    <div class="label">Foreground</div>
+                                    <select id="num" class="form-control"></select>
+                                </div>
+
+                                <div>
+                                    <div class="label">Background</div>
+                                    <select id="denom" class="form-control"></select>
+                                </div>
+
+                                <div>
+                                    <div class="label" style="height: 1em"></div>
+                                    <button type="button" class="btn btn-default btn-outline-primary" id="submit_de" class="form-control">Calculate DE</button>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" type="button" data-toggle="collapse" data-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample">
+                              Advanced Options
+                            </button>
+                            <div class="collapse collapsed-controls" id="collapseExample">
+                              <div>
+                                  <div class="label">Exclude genes expressed in<br>less than <i>m</i> cells: </div>
+                                  <div class='label-control'>
+                                      <span class="label">m =</span>
+                                      <input type="number" id="de_min_cells" class="form-control" value="0"></input>
+                                  </div>
+                              </div>
+                              <div>
+                                  <div class='label-control no-select' style="align-items: center">
+                                      <span class="label">
+                                          <label for="de_sub_cells">Subsample Groups?</label>
+                                      </span>
+                                      <input type="checkbox" id="de_sub_cells" name="sub_groups" value="off">
+                                  </div>
+                                  <div class='label-control max-control disabled'>
+                                      <span class="label">Max Size =</span>
+                                      <input type="number" id="de_sub_cells_n" class="form-control" tabindex="-1" value="1000"></input>
+                                  </div>
+                              </div>
+                            </div>
+                        </div>
+
+                        <div id='de-error' style='display: none'></div>
+
+                        <div id='de-results' style='display: none'>
+                            <div class="spacer"></div>
+                            <div id='de-results-title'>Some Title for Comparison</div>
+                            <div class="spacer2"></div>
+                            <div class='label-control fdr-holder'>
+                                <span>Maximum FDR: </span>
+                                <input type="search" id="max" name="max" value=".05"></td>
+                            </div>
+                            <div id='de-results-table-div'>
+                                <table id="de-results-table" class="compact stripe hover"></table>
+                            </div>
+                            <div class="spacer2"></div>
+                            <div class="button-container">
+                                <div class='back-button'>
+                                    <button type="button" class="btn btn-secondary" id="new_de" class="form-control">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="3" y1="10" x2="18" y2="10" />
+                                            <line x1="3" y1="10" x2="10" y2="5" />
+                                            <line x1="3" y1="10" x2="10" y2="15" />
+                                        </svg>
+                                        New Comparison</button>
+                                </div>
+                            </div>
+                            <div class="spacer"></div>
+                        </div> <!-- End #de-results -->
+                  </div> <!-- End #de-table -->
+                </div>
+            </div> <!-- End of upper-left-content -->
+            <div id="lower-left-content">
+                <div class="nav nav-pills justify-content-center">
+                    <a class="nav-link active" id="ValuesButton" href="#value-plot" data-toggle="tab" aria-controls="value-plot" aria-selected="true">Values</a>
+                    <a class="nav-link" id="SigInfoButton" href="#sig-info-default" data-toggle="tab" aria-controls="sig-info-default" aria-selected="true">Signature</a>
+                    <a class="nav-link" id="HeatmapButton" href="#sig-info-cluster" data-toggle="tab" aria-controls="sig-info-cluster" aria-selected="false">Heatmap</a>
+                    <a class="nav-link" id="CellButton" href="#selected-cell-info" data-toggle="tab" aria-controls="selected-cell-info" aria-selected="false" style="display: none">Cell</a>
+                    <a class="nav-link" id="SelectionButton" href="#selection-info" data-toggle="tab" aria-controls="selection-info" aria-selected="false" style="display: none">Selection</a>
+                </div>
+                <div class="tab-content">
+                    <div id="value-plot" class="tab-pane show active" role="tabpanel" aria-labelledby="ValuesButton">
+                        <table class='label-table' style='margin-left: 30px;'>
+                            <tr style='font-size: 1.2em;'>
+                                <td></td>
+                                <td><span id="values-title" style="display: inline-block; width: 300px; word-wrap: break-word;"></span></td>
+                                <td>
+                                    <div class="checkbox-label">
+                                        <label for="log-check">Log Scale?</label>
+                                        <input type="checkbox" value="" id="log-check">
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <div id="dist-div" style="flex-grow: 1"></div>
+                    </div>
+                    <div id="sig-info-default" class="tab-pane show" role="tabpanel" aria-labelledby="SigInfoButton">
+                        <table class='label-table' style='margin-left: 30px; margin-bottom: 20px; width: 250px;'>
+                            <tr style='font-size: 1.2em;'>
+                                <td>Signature:</td>
+                                <td><span id="data-analysis-title" style="display: inline-block; width: 300px; word-wrap: break-word;"></span></td>
+                            </tr>
+                            <tr>
+                                <td>Source:</td>
+                                <td><span id="sig-source"></span></td>
+                            </tr>
+                        </table>
+                        <div id="sig-table-wrapper" style="margin: 0 20px; display: flex; flex-direction: column;">
+                            <table id="sig-info-table" class="display" width="100%">
+                            </table>
+                        </div>
+                    </div>
+                    <div id="sig-info-cluster" class="tab-pane" role="tabpanel" aria-labelledby="HeatmapButton">
+                        <div>
+                            <span class="label">Grouping Variable:</span>
+                            <select id="heatmap-group-select" class="form-control form-control-sm" style="width: 150px;"></select>
+                        </div>
+                        <div id="heatmap-div"></div>
+                    </div>
+                    <div id="selected-cell-info" class="tab-pane" role="tabpanel" aria-labelledby="CellButton">
+                        <div class='label-row' style='margin-left: 30px; margin-bottom: 20px;'>
+                            <span>Cell ID:</span>
+                            <span id="cell-id-span"></span>
+                        </div>
+                        <div style="margin: 0 20px">
+                            <table id="cell-info-table" class="display" width="100%"> </table>
+                        </div>
+                    </div>
+                    <div id="selection-info" class="tab-pane" role="tabpanel" aria-labelledby="SelectionButton">
+                        <div class='label-row' style='margin-left: 30px; margin-bottom: 20px; display: flex; flex-shrink: 0; align-items: center;'>
+                            <div>Cells Selected:</div>
+                            <div id="selected-cell-count-span" style="padding-right: 5px"></div>
+                            <div id="download-cells-button" class="vis-icon invert">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="14" y1="5" x2="14" y2="17" />
+                                    <line x1="9" y1="13" x2="14" y2="17" />
+                                    <line x1="19" y1="13" x2="14" y2="17" />
+                                    <line x1="19" y1="13" x2="14" y2="17" />
+                                    <path d="M6 18 L6 21 L22 21 L22 18" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div style="margin: 0 20px;">
+                            <table id="selection-info-table" class='display' width="100%"></table>
+                            <div style="min-height: 20px"></div>
+                            <table id="selection-info-table-meta" class='display' width="100%"></table>
+                        </div>
+                    </div>
+                </div> <!-- End of .tab-content -->
+            </div> <!-- End of lower-left-content -->
+        </div> <!-- End of left-content -->
+        <div id="right-content">
+
+            <div id="sigvp-scatter-div">
+                <div id="plot-title-div">
+                    <div class="titles">
+                        <div id="plot-subtitle-latent">
+                            <div>
+                                <div class="labeled-select">
+                                    <span class="label">View:</span>
+                                    <select id="SelectProjScatter" class="form-control"></select>
+                                </div>
+                                <div class="labeled-select">
+                                    <span class="label">X:</span>
+                                    <select id="SelectProjScatterX" class="form-control"></select>
+                                </div>
+                            </div>
+                            <div class="labeled-select">
+                                <span class="label">Y:</span>
+                                <select id="SelectProjScatterY" class="form-control"></select>
+                            </div>
+                        </div>
+                        <div id="plot-subtitle-trajectory" style="display: none">
+                            <div class="labeled-select">
+                                <span class="label">Projection:</span>
+                                <select id="SelectTrajectoryProjScatter" class="form-control"></select>
+                            </div>
+                        </div>
+                        <div class="checkbox-label no-select" style="margin: 5px 0 5px 10px;">
+                            <span class="label"><label for="sync-check">Update All?</label></span>
+                            <input type="checkbox" value="" id="sync-check" checked>
+                        </div>
+                    </div>
+                    <div class="color-options" >
+                        <div id="plotted-layout-option">
+                            <div class="label">Layout</div>
+                            <div class="btn-group btn-group-toggle" role="group" aria-label="Layout Buttons" data-toggle="buttons">
+                                <label class="btn btn-outline-secondary active">
+                                    <input type="radio" name="scatterLayoutButtons" value="full" autocomplete="off" checked>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    </svg>
+                                </label>
+                                <label class="btn btn-outline-secondary">
+                                    <input type="radio" name="scatterLayoutButtons" value="splitH" autocomplete="off">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></rect>
+                                        <line x1="3" y1="12" x2="21" y2="12" />
+                                    </svg>
+                                </label>
+                                <label class="btn btn-outline-secondary">
+                                    <input type="radio" name="scatterLayoutButtons" value="splitV" autocomplete="off">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></rect>
+                                        <line x1="12" y1="3" x2="12" y2="21" />
+                                    </svg>
+                                </label>
+                                <label class="btn btn-outline-secondary">
+                                    <input type="radio" name="scatterLayoutButtons" value="split4" autocomplete="off">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></rect>
+                                        <line x1="3" y1="12" x2="21" y2="12" />
+                                        <line x1="12" y1="3" x2="12" y2="21" />
+                                    </svg>
+                                </label>
+                            </div>
+                        </div>
+                        <div id="plotted-value-option">
+                            <div class="label">Signature Scaling</div>
+                            <div class="btn-group btn-group-toggle" role="group" data-toggle="buttons">
+                                <label class="btn btn-outline-secondary">
+                                    <input type="radio" name="scatterColorButtons" id="valueoption" value="value" autocomplete="off"> Value
+                                </label>
+                                <label class="btn btn-outline-secondary active">
+                                    <input type="radio" name="scatterColorButtons" id="rankoption" value="rank" autocomplete="off" checked> Rank
+                                </label>
+                            </div>
+                        </div>
+                        <div id="selection-options">
+                            <div class="label">Selected Cells</div>
+                            <div style="display: flex;">
+                                <button id="save-selection-button" type="button" class="btn btn-outline-secondary"
+                                    data-toggle="modal" data-target="#saveSelectionModal" disabled>Save</button>
+                                <button id="load-selection-button" type="button" class="btn btn-outline-secondary"
+                                    data-toggle="modal" data-target="#loadSelectionModal" style="margin-left: 5px" >Load</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="scatter-container-div">
+                    <div id="scatter-div" class="scatter-layout-container"></div>
+                    <div id="scatter-splitH-div" class="scatter-layout-container" style="display: none">
+                            <div id='scatter-splitH-div0' class="scatter-split-plot-div active"></div>
+                            <div id='scatter-splitH-div1' class="scatter-split-plot-div"></div>
+                    </div>
+                    <div id="scatter-splitV-div" class="scatter-layout-container" style="display: none">
+                        <div class="scatter-split-row-div">
+                            <div id='scatter-splitV-div0' class="scatter-split-plot-div active"></div>
+                            <div id='scatter-splitV-div1' class="scatter-split-plot-div"></div>
+                        </div>
+                    </div>
+                    <div id="scatter-split-div" class="scatter-layout-container" style="display: none">
+                        <div class="scatter-split-row-div">
+                            <div id='scatter-split-div0' class="scatter-split-plot-div active"></div>
+                            <div id='scatter-split-div1' class="scatter-split-plot-div"></div>
+                        </div>
+                        <div class="scatter-split-row-div">
+                            <div id='scatter-split-div2' class="scatter-split-plot-div"></div>
+                            <div id='scatter-split-div3' class="scatter-split-plot-div"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div> <!-- End of right-content -->
+    </div>
+    <div id="sig-tooltip">
+        <div class="inner">
+            Test!
+        </div>
+        <div class="arrow"></div>
+    </div>
+    <div id="hidden-node" style="position: absolute; left: -10000px; top: 10000px;"></div>
+
+    <!-- Save Selection Modal -->
+    <div class="modal fade" id="saveSelectionModal" tabindex="-1" role="dialog" aria-labelledby="saveSelectionModalTitle" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="saveSelectionModalTitle">Save Selection</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+              <div class="form-group">
+                  <label for="saveSelectionName">Selection Name</label>
+                  <input type="text" class="form-control" id="saveSelectionName" area-describedby="selectionNameHelp"></input>
+                  <small id="selectionNameHelp" class="form-text text-muted">Pick a name for this selection.</small>
+              </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary confirm-button">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- End Save Selection Modal -->
+
+    <!-- Load Selection Modal -->
+    <div class="modal fade" id="loadSelectionModal" tabindex="-1" role="dialog" aria-labelledby="loadSelectionModalTitle" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="loadSelectionModalTitle">Load Selection</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+              <div style="font-weight: bold; margin-bottom: 15px">Select a stored selection: </div>
+              <div class="selection-list">
+              </div>
+              <div class="empty-list" style="display: none">
+                  <div>
+                      There are no saved selections
+                  </div>
+              </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary confirm-button">Load</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- End Load Selection Modal -->
+
+</body>
+</html>

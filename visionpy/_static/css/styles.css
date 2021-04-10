@@ -1,0 +1,210 @@
+@import url("https://fonts.googleapis.com/css?family=Open+Sans:400,600,700");
+@import url("https://netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.css");
+
+
+html {
+    height: 100%;
+    width: 100%;
+    overflow: hidden; /* suppresses scrolllbar for off-screen hidden elements */
+}
+
+/* 2.0 dpr */
+/* Hack for high-dpi laptops */
+@media
+(-webkit-min-device-pixel-ratio: 2.0),
+(min-resolution: 192dpi){
+    html {
+        zoom: 0.75;
+    }
+
+    .js-plotly-plot {
+        zoom: 1.33333;
+    }
+}
+
+body {
+    height: 100%;
+    width: 100%;
+    color: #555;
+    background: #fff;
+    font: 14px/1 'Open Sans', sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+#nav-bar{
+    height: 50px;
+    padding: 10px 30px 10px 10px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    background-color: var(--primary);
+    color: white;
+}
+
+#nav-bar .logo{
+    font-size: 1.8em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+}
+
+#nav-bar .nav{
+    flex-grow: 1;
+    font-size: 1.2em;
+}
+
+.nav-pills.inv .nav-link.active{
+    background-color: #fff;
+    color: var(--primary);
+}
+
+.nav-pills.inv .nav-link:not(.active){
+    background-color: var(--primary);
+    color: white;
+}
+
+.nav-pills.inv .nav-link.disabled{
+    color: #aaaaaa;
+    cursor: default;
+}
+
+#main-content{
+    flex-grow: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    min-height: 0;
+}
+
+#left-content{
+    width: 500px;
+    display: flex;
+    flex-direction: column;
+}
+
+#upper-left-content{
+    height: 50%;
+    box-sizing: border-box;
+}
+
+#lower-left-content{
+    height: 50%;
+    box-sizing: border-box;
+    border-top: 1px solid #bbbbbb;
+}
+
+#right-content{
+    flex-grow: 1;
+    flex-basis: 0;
+    min-width: 0;
+    box-sizing: border-box;
+    border-left: 1px solid #bbbbbb;
+}
+
+.section-nav
+{
+    font-size: 1em;
+}
+
+table.label-table td:first-child{
+    font-weight: bold;
+    padding-right:10px;
+}
+
+table.label-table td{
+    padding: 5px;
+}
+
+div.label-row {
+    font-size: 1.2em;
+}
+
+div.label-row > span:first-child, div.label-row > div:first-child{
+    font-weight: bold;
+    padding-right: 10px;
+}
+
+.label1 {
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+.loading > *:not(.loadingSpinner){
+    -webkit-filter: grayscale(100%) blur(5px);
+    filter: grayscale(100%) blur(5px);
+}
+
+.loadingSpinner {
+    position: fixed;
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /*background:url("loading.gif") no-repeat center center;*/
+}
+
+/* Styles for hover tooltip */
+/* Initial position is weird because Popper will position them dynamically on hover */
+#sig-tooltip {
+    position: absolute;
+    left: -10000px;
+    top: 10000px;
+}
+
+#sig-tooltip > .inner{
+    padding: 5px;
+    background-color: black;
+    color: #cccccc;
+    border-radius: 3px;
+}
+
+#sig-tooltip > .arrow {
+    width:0;
+    height:0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid black;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+div.vis-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    width: 24px;
+    height: 24px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+div.vis-icon.invert {
+    background-color: var(--primary);
+    color: white;
+}
+
+div.vis-icon > svg {
+    position: absolute;
+    width: 85%;
+    height: 85%;
+}
+
+.label {
+    font-size: .9em;
+    font-weight: bold;
+}
+
+/* Prevents text from being selected */
+.no-select {
+  -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+     -khtml-user-select: none; /* Konqueror HTML */
+       -moz-user-select: none; /* Old versions of Firefox */
+        -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; /* Non-prefixed version, currently
+                                  supported by Chrome, Opera and Firefox */
+}
