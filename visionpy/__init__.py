@@ -4,8 +4,11 @@ import logging
 import os
 
 from flask import Flask
+from pandas.core import accessor
 from rich.console import Console
 from rich.logging import RichHandler
+
+from .anndata import AnnDataAccessor
 
 # https://github.com/python-poetry/poetry/pull/2366#issuecomment-652418094
 # https://github.com/python-poetry/poetry/issues/144#issuecomment-623927302
@@ -32,6 +35,9 @@ logger.addHandler(ch)
 
 # this prevents double outputs
 logger.propagate = False
+
+
+data_accessor = AnnDataAccessor()
 
 
 # https://flask.palletsprojects.com/en/1.1.x/tutorial/factory/
