@@ -1,5 +1,6 @@
 from collections import OrderedDict
 
+import numpy as np
 from flask import Blueprint, jsonify, render_template
 from visionpy import data_accessor
 
@@ -40,7 +41,9 @@ def get_projection_column(proj_name, proj_col):
         column_ind = int(proj_col[-1] - 1)
         data = adata.obsm[proj_name][:, column_ind].values.tolist()
 
-    return jsonify(data)
+    data = np.hstack([adata.obs_names.tolist(), data])
+
+    return jsonify(data.tolist())
 
 
 @bp.route("/Tree/Projections/list", methods=["GET"])
