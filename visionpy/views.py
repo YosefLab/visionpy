@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, render_template
 from visionpy import data_accessor
 
 bp = Blueprint("api", __name__)
@@ -6,9 +6,9 @@ bp = Blueprint("api", __name__)
 adata = data_accessor.adata
 
 
-@bp.route("/hello")
-def hello():
-    return str(adata.obs_names.tolist()[0])
+@bp.route("/")
+def app():
+    return render_template("Results.html")
 
 
 @bp.route("/Projections/list", methods=["GET"])
