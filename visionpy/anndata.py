@@ -4,6 +4,7 @@ import anndata
 import scipy
 
 from ._compat import Literal
+from .signature import compute_obs_df_scores
 
 
 class AnnDataAccessor(object):
@@ -67,3 +68,6 @@ class AnnDataAccessor(object):
             data = data.toarray().ravel()
 
         return data.tolist()
+
+    def compute_obs_df_scores(self):
+        self._adata.uns["vision_obs_df_scores"] = compute_obs_df_scores(self._adata)

@@ -80,7 +80,7 @@ def get_tree_projection_list():
 @bp.route("/SessionInfo", methods=["GET"])
 def get_session_info():
     info = {}
-    info["name"] = "name"
+    info["name"] = adata.uns["vision_session_name"]
     info["has_tree"] = False
     info["meta_sigs"] = adata.obs.columns.tolist()
     # info[["pooled"]] <- object@params$micropooling$pool
@@ -166,7 +166,12 @@ def get_sigprojmatrix_meta(cluster_variable):
     proj_labels = ["Score"] + list(
         adata.obs[cluster_variable].astype("category").cat.categories
     )
-    zscores = np.zeros((len(sig_labels), len(proj_labels))).tolist()
+
+    # TODO: properly compute all information
+    scores = adata.uns["vision_obs_df_scores"]["c_prime"].to_numpy().reshape(-1, 1)
+    zscores = np.hstack(
+        [scores, np.zeros((len(sig_labels), len(proj_labels) - 1))]
+    ).tolist()
     pvals = np.zeros_like(zscores).tolist()
 
     matrix = ServerSigProjMatrix(

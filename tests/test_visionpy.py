@@ -3,4 +3,4 @@ import scanpy
 
 adata = scanpy.datasets.pbmc3k_processed()
 
-start_vision(adata, debug=True, norm_data_key="use_raw")
+start_vision(adata, name="Test session", debug=True, norm_data_key="use_raw")
