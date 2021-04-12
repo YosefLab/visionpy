@@ -1,12 +1,30 @@
 from collections import OrderedDict
 
 import numpy as np
+import pandas as pd
 from flask import Blueprint, jsonify, render_template
 from visionpy import data_accessor
 
 bp = Blueprint("api", __name__)
 
 adata = data_accessor.adata
+
+
+class ServerSigProjMatrix:
+    def __init__(self, zscores, pvals, proj_labels, sig_labels) -> None:
+        self.zscores = zscores
+        self.pvals = pvals
+        self.proj_labels = proj_labels
+        self.sig_labels = sig_labels
+
+    def prepare_json(self):
+        return {
+            "class": ["ServerSigProjMatrix"],
+            "sig_labels": self.sig_labels,
+            "proj_labels": self.proj_labels,
+            "zscores": self.zscores,
+            "pvals": self.pvals,
+        }
 
 
 @bp.route("/")
@@ -25,7 +43,7 @@ def get_projection_list():
                 name.upper() + "{}".format(i + 1) for i in range(adata.obsm[k].shape[1])
             ]
     # get only numeric columns
-    proj_dict["Obs metadata"] = adata.obs._get_numeric_data().columns.tolist()
+    proj_dict["Obs_metadata"] = adata.obs._get_numeric_data().columns.tolist()
 
     if "X_umap" in adata.obsm_keys():
         proj_dict.move_to_end("X_umap", last=False)
@@ -35,14 +53,21 @@ def get_projection_list():
 
 @bp.route("/Projections/<proj_name>/coordinates/<proj_col>", methods=["GET"])
 def get_projection_column(proj_name, proj_col):
-    if proj_name == "Obs metadata":
+    if proj_name == "Obs_metadata":
         data = adata.obs[proj_col].values.tolist()
     else:
-        column_ind = int(proj_col[-1] - 1)
-        data = adata.obsm[proj_name][:, column_ind].values.tolist()
+        column_ind = int(proj_col[-1]) - 1
+        data = adata.obsm[proj_name]
+        if isinstance(data, pd.DataFrame):
+            data = data.iloc[:, column_ind].values.tolist()
+        else:
+            data = data[:, column_ind].tolist()
 
-    data = np.hstack([adata.obs_names.tolist(), data])
+    # the order matters here
+    data = np.vstack([data, adata.obs_names.tolist()]).transpose()
 
+    # need a list of lists, where each internal list is a coord value
+    # and then a barcode value
     return jsonify(data.tolist())
 
 
@@ -72,7 +97,15 @@ def get_session_info():
 
 @bp.route("/Clusters/MetaLevels", methods=["GET"])
 def get_clusters_metalevels():
-    return jsonify([])
+    num_cols = adata.obs._get_numeric_data().columns.tolist()
+    cols = adata.obs.columns.tolist()
+    cat_vars = list(set(cols) - set(num_cols))
+
+    cat_key_vals = {}
+    for c in cat_vars:
+        cat_key_vals[c] = list(adata.obs[c].astype("category").cat.categories)
+
+    return jsonify(cat_key_vals)
 
 
 @bp.route("/Clusters/<cluster_variable>/Cells", methods=["GET"])
@@ -82,6 +115,7 @@ def get_clusters_cluster_var_cells(cluster_variable):
 
 @bp.route("/Cells/Selections", methods=["GET"])
 def get_cells_selections():
+
     return jsonify([])
 
 
@@ -97,11 +131,47 @@ def get_gene_expression(gene_name):
     )
 
 
+@bp.route("/Signature/Meta/<sig_name>", methods=["GET"])
+def get_signature_meta(sig_name):
+    return jsonify(
+        dict(cells=adata.obs_names.tolist(), values=adata.obs.loc[:, sig_name].tolist())
+    )
+
+
+@bp.route("/Signature/Scores/<sig_name>", methods=["GET"])
+def get_signature_score(sig_name):
+    # TODO
+    return jsonify(
+        dict(cells=adata.obs_names.tolist(), values=np.zeros((adata.n_obs).tolist()))
+    )
+
+
 @bp.route("/FilterGroup/SigClusters/Meta", methods=["GET"])
 def get_sigclusters_meta():
-    return jsonify(["1"] * len(adata.obs.columns))
+    # return jsonify(np.arange(len(adata.obs.columns)).tolist())
+    return jsonify([])
 
 
 @bp.route("/Clusters/<cluster_variable>/SigProjMatrix/Meta", methods=["GET"])
 def get_sigprojmatrix_meta(cluster_variable):
-    return jsonify([])
+
+    sig_labels = adata.obs.columns.tolist()
+    # TODO: amortize computation in metalevels route
+    proj_labels = ["Score"] + list(
+        adata.obs[cluster_variable].astype("category").cat.categories
+    )
+    zscores = np.zeros((len(sig_labels), len(proj_labels))).tolist()
+    pvals = np.zeros_like(zscores).tolist()
+
+    matrix = ServerSigProjMatrix(
+        sig_labels=sig_labels, proj_labels=proj_labels, zscores=zscores, pvals=pvals
+    )
+    return jsonify(matrix.prepare_json())
+
+
+@bp.route("/Cell/<cell_id>/Meta", methods=["GET"])
+def get_cell_metadata(cell_id):
+    cell = adata.obs.loc[cell_id].to_dict()
+    for k, v in cell.items():
+        cell[k] = str(v)
+    return jsonify(cell)
