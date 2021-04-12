@@ -4,7 +4,6 @@ import logging
 import os
 
 from flask import Flask
-from pandas.core import accessor
 from rich.console import Console
 from rich.logging import RichHandler
 
