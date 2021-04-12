@@ -72,9 +72,14 @@ def get_clusters_metalevels():
     return jsonify([])
 
 
+@bp.route("/Clusters/<cluster_variable>/Cells", methods=["GET"])
+def get_clusters_cluster_var_cells(cluster_variable):
+    return "No clusters"
+
+
 @bp.route("/Cells/Selections", methods=["GET"])
 def get_cells_selections():
-    return jsonify(adata.obs_names.tolist())
+    return jsonify([])
 
 
 @bp.route("/Expression/Genes/List", methods=["GET"])
@@ -84,14 +89,16 @@ def get_gene_names():
 
 @bp.route("/Expression/Gene/<gene_name>", methods=["GET"])
 def get_gene_expression(gene_name):
-    return jsonify(adata[:, gene_name].X.tolist())
+    return jsonify(
+        dict(cells=adata.obs_names.tolist(), values=adata[:, gene_name].X.tolist())
+    )
 
 
 @bp.route("/FilterGroup/SigClusters/Meta", methods=["GET"])
 def get_sigclusters_meta():
-    return jsonify([])
+    return jsonify(["1"] * len(adata.obs.columns))
 
 
 @bp.route("/Clusters/<cluster_variable>/SigProjMatrix/Meta", methods=["GET"])
-def get_sigprojmatrix_meta_cluster(cluster_variable):
+def get_sigprojmatrix_meta(cluster_variable):
     return jsonify([])
