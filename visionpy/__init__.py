@@ -61,8 +61,8 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    from . import views
+    from . import blueprint
 
-    app.register_blueprint(views.bp)
+    app.register_blueprint(blueprint.bp)
 
     return app

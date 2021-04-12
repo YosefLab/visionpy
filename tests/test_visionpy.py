@@ -1,3 +1,6 @@
-from visionpy.launch import run
+from visionpy.api import start_vision
+import scanpy
 
-run(debug=True)
+adata = scanpy.datasets.pbmc3k_processed()
+
+start_vision(adata, debug=True, norm_data_key="use_raw")

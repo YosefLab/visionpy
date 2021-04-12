@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 from visionpy import data_accessor
 
 bp = Blueprint("api", __name__)
@@ -127,7 +127,10 @@ def get_gene_names():
 @bp.route("/Expression/Gene/<gene_name>", methods=["GET"])
 def get_gene_expression(gene_name):
     return jsonify(
-        dict(cells=adata.obs_names.tolist(), values=adata[:, gene_name].X.tolist())
+        dict(
+            cells=adata.obs_names.tolist(),
+            values=data_accessor.get_gene_expression(gene_name),
+        )
     )
 
 
@@ -148,8 +151,11 @@ def get_signature_score(sig_name):
 
 @bp.route("/FilterGroup/SigClusters/Meta", methods=["GET"])
 def get_sigclusters_meta():
-    # return jsonify(np.arange(len(adata.obs.columns)).tolist())
-    return jsonify([])
+    cols = adata.obs.columns.to_list()
+    clusters = {}
+    for c in cols:
+        clusters[c] = 1
+    return jsonify(clusters)
 
 
 @bp.route("/Clusters/<cluster_variable>/SigProjMatrix/Meta", methods=["GET"])
@@ -169,9 +175,13 @@ def get_sigprojmatrix_meta(cluster_variable):
     return jsonify(matrix.prepare_json())
 
 
-@bp.route("/Cell/<cell_id>/Meta", methods=["GET"])
+@bp.route("/Cell/<cell_id>/Meta", methods=["GET", "POST"])
 def get_cell_metadata(cell_id):
-    cell = adata.obs.loc[cell_id].to_dict()
-    for k, v in cell.items():
-        cell[k] = str(v)
-    return jsonify(cell)
+    if request.method == "GET":
+        cell = adata.obs.loc[cell_id].to_dict()
+        for k, v in cell.items():
+            cell[k] = str(v)
+        return jsonify(cell)
+    else:
+        # TODO IMPLEMENT
+        pass
