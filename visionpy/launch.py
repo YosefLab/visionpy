@@ -5,7 +5,7 @@ import scanpy
 adata = scanpy.datasets.pbmc3k_processed()
 
 
-def run():
+def run(debug=False):
     data_accessor.adata = adata
     app = create_app()
-    app.run(threaded=False, processes=1)
+    app.run(threaded=False, processes=1, debug=debug)
