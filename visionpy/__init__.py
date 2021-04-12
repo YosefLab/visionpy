@@ -4,6 +4,7 @@ import logging
 import os
 
 from flask import Flask
+from flask_compress import Compress
 from rich.console import Console
 from rich.logging import RichHandler
 
@@ -37,7 +38,7 @@ logger.propagate = False
 
 
 data_accessor = AnnDataAccessor()
-
+compress = Compress()
 
 # https://flask.palletsprojects.com/en/1.1.x/tutorial/factory/
 def create_app(test_config=None):
@@ -64,5 +65,6 @@ def create_app(test_config=None):
     from . import blueprint
 
     app.register_blueprint(blueprint.bp)
+    compress.init_app(app)
 
     return app

@@ -189,4 +189,11 @@ def get_cell_metadata(cell_id):
         return jsonify(cell)
     else:
         # TODO IMPLEMENT
+        # get subset from json postBody
+        # adata.obs == METADATA
+        # adata.obs._get_numeric_data() is a dataframe subset with numeric columns
+        # need dict[column] = dict with keys ("Min", "Median", "Max") for numeric columns
+        # for categorical obs
+        # need dict[column] = dict with keys (categories of column) value is frequency (e.g., 90 for 90%)
+        # take two dictionaries and put in dictionary with key "numeric" for first, "factor" for second
         pass
