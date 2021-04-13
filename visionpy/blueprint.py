@@ -98,9 +98,7 @@ def get_session_info():
 
 @bp.route("/Clusters/MetaLevels", methods=["GET"])
 def get_clusters_metalevels():
-    num_cols = adata.obs._get_numeric_data().columns.tolist()
-    cols = adata.obs.columns.tolist()
-    cat_vars = list(set(cols) - set(num_cols))
+    cat_vars = data_accessor.cat_obs_cols
 
     cat_key_vals = {}
     for c in cat_vars:

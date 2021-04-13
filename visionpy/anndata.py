@@ -38,6 +38,10 @@ class AnnDataAccessor(object):
     @adata.setter
     def adata(self, adata: anndata.AnnData):
         self._adata = adata
+        num_cols = adata.obs._get_numeric_data().columns.tolist()
+        cols = adata.obs.columns.tolist()
+        cat_vars = list(set(cols) - set(num_cols))
+        self.cat_obs_cols = cat_vars
 
     @property
     def protein_obsm_key(self):
@@ -77,18 +81,14 @@ class AnnDataAccessor(object):
         self.adata.uns["vision_signature_scores"] = compute_signature_scores(self.adata)
 
     def compute_one_vs_all_signatures(self):
-        num_cols = self.adata.obs._get_numeric_data().columns.tolist()
-        cols = self.adata.obs.columns.tolist()
-        cat_vars = list(set(cols) - set(num_cols))
 
         sig_adata = anndata.AnnData(self.adata.obsm["vision_signatures"])
-        sig_adata.obs = self.adata.obs.loc[:, cat_vars].copy()
-        for c in cat_vars:
+        sig_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
+        for c in self.cat_obs_cols:
             sc.tl.rank_genes_groups(
                 sig_adata,
                 groupby=c,
                 key_added="rank_genes_groups_{}".format(c),
                 method="wilcoxon",
             )
-        self.cat_obs_cols = cat_vars
         self.sig_adata = sig_adata
