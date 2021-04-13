@@ -108,7 +108,9 @@ def compute_signature(
         data=cell_signature_matrix, columns=cols, index=adata.obs_names
     )
     # TODO: might not be most efficient
-    total = np.asarray((sig_matrix != 0).sum(0)).ravel()
+    sig_matrix_abs = sig_matrix.copy()
+    sig_matrix_abs.data = np.abs(sig_matrix_abs.data)
+    total = np.asarray(sig_matrix_abs.sum(0)).ravel()
     sig_df = sig_df / total
     # normalize
     mean, var = _get_mean_var(gene_expr, axis=1)
