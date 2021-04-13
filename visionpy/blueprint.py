@@ -44,7 +44,7 @@ def get_projection_list():
                 name.upper() + "{}".format(i + 1) for i in range(adata.obsm[k].shape[1])
             ]
     # get only numeric columns
-    proj_dict["Obs_metadata"] = adata.obs._get_numeric_data().columns.tolist()
+    proj_dict["Obs_metadata"] = data_accessor.numeric_obs_cols
 
     if "X_umap" in adata.obsm_keys():
         proj_dict.move_to_end("X_umap", last=False)
@@ -270,11 +270,8 @@ def send_cells_meta():
     # TODO: Make nicer
     subset = json.loads(list(dict(request.form.lists()).keys())[0])
     df = adata[subset].obs
-    numerical_df = df._get_numeric_data()
-    num_cols = numerical_df.columns.tolist()
-    cols = adata.obs.columns.tolist()
-    cat_cols = list(set(cols) - set(num_cols))
-    categorical_df = df.loc[:, cat_cols]
+    numerical_df = df.loc[:, data_accessor.numeric_obs_cols]
+    categorical_df = df.loc[:, data_accessor.cat_obs_cols]
 
     num_percentiles = np.percentile(numerical_df, [0, 50, 100], axis=0)
     numerical_stats = {}

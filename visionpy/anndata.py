@@ -59,6 +59,7 @@ class AnnDataAccessor(object):
         cols = adata.obs.columns.tolist()
         cat_vars = list(set(cols) - set(num_cols))
         self.cat_obs_cols = cat_vars
+        self.numeric_obs_cols = num_cols
 
     @property
     def protein_obsm_key(self):
