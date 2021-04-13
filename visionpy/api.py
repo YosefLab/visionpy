@@ -9,14 +9,6 @@ from visionpy import create_app, data_accessor
 from ._compat import Literal
 
 
-@click.command()
-@click.option("--adata", prompt="Path to anndata.", help="Test")
-@click.option("--name", prompt="Name of VISION session.")
-@click.option("--norm_data_key", default=None, prompt="Name of VISION session.")
-@click.option(
-    "--compute_neighbors_on_key", default=None, prompt="Name of VISION session."
-)
-@click.option("--debug", default=False, prompt="Name of VISION session.")
 def start_vision(
     adata: Union[str, anndata.AnnData],
     name: str,
@@ -50,7 +42,6 @@ def start_vision(
         # TODO: check that neighbors is in anndata
         pass
 
-    # TODO: don't overwrite old ones
     # row normalize connectivity
     adata.obsp["normalized_connectivities"] = normalize(
         adata.obsp["connectivities"], norm="l1", axis=1
@@ -63,3 +54,15 @@ def start_vision(
 
     app = create_app()
     app.run(threaded=False, processes=1, debug=debug)
+
+
+@click.command()
+@click.option("--adata", prompt="Path to anndata.", help="Test")
+@click.option("--name", prompt="Name of VISION session.")
+@click.option("--norm_data_key", default=None, prompt="Name of VISION session.")
+@click.option(
+    "--compute_neighbors_on_key", default=None, prompt="Name of VISION session."
+)
+@click.option("--debug", default=False, prompt="Name of VISION session.")
+def _start_vision_cli(adata, name, norm_data_key, compute_neighbors_on_key, debug):
+    start_vision(adata, name, norm_data_key, compute_neighbors_on_key, debug)

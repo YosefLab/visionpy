@@ -85,4 +85,4 @@ requires = [
 ]
 
 [tool.poetry.scripts]
-visionpy = "visionpy.api:start_vision"
+visionpy = "visionpy.api:_start_vision_cli"
