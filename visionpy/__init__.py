@@ -65,6 +65,8 @@ def create_app(test_config=None):
     from . import blueprint
 
     app.register_blueprint(blueprint.bp)
+    # https://stackoverflow.com/questions/43263356/prevent-flask-jsonify-from-sorting-the-data/43263483
+    # app.config["JSON_SORT_KEYS"] = False
     compress.init_app(app)
 
     return app

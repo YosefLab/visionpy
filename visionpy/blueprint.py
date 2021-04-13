@@ -66,11 +66,14 @@ def get_projection_column(proj_name, proj_col):
             data = data[:, column_ind].tolist()
 
     # the order matters here
-    data = np.vstack([data, adata.obs_names.tolist()]).transpose()
+    df = pd.DataFrame()
+    df["Coords"] = data
+    df["Barcodes"] = adata.obs_names.tolist()
 
     # need a list of lists, where each internal list is a coord value
     # and then a barcode value
-    return jsonify(data.tolist())
+    # coord value needs to be float, barcode str
+    return jsonify(df.to_numpy().tolist())
 
 
 @bp.route("/Tree/Projections/list", methods=["GET"])
