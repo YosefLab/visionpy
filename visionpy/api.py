@@ -72,6 +72,7 @@ def start_vision(
     data_accessor.compute_signature_scores()
     data_accessor.compute_one_vs_all_signatures()
     data_accessor.compute_gene_score_per_signature()
+    data_accessor.compute_one_vs_all_obs_cols()
 
     app = create_app()
     app.run(threaded=False, processes=1, debug=debug)

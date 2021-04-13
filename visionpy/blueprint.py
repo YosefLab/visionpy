@@ -191,15 +191,30 @@ def get_sigprojmatrix_meta(cluster_variable):
         adata.obs[cluster_variable].astype("category").cat.categories
     )
 
-    # TODO: properly compute all information
     scores = adata.uns["vision_obs_df_scores"]["c_prime"].to_numpy().reshape(-1, 1)
-    zscores = np.hstack(
-        [scores, np.zeros((len(sig_labels), len(proj_labels) - 1))]
-    ).tolist()
-    pvals = np.zeros_like(zscores).tolist()
+    sigs_by_projs_stats = pd.DataFrame(
+        index=sig_labels, columns=proj_labels[1:], data=0
+    )
+    sigs_by_projs_pvals = pd.DataFrame(
+        index=sig_labels, columns=proj_labels[1:], data=0
+    )
+    obs_adata = data_accessor.obs_adata
+    for c in data_accessor.cat_obs_cols:
+        # TODO: test for categorical data with chi sq
+        for p in proj_labels[1:]:
+            temp_df = sc.get.rank_genes_groups_df(
+                obs_adata, key="rank_genes_groups_{}".format(c), group=p
+            )
+            temp_df.set_index("names", inplace=True)
+            sigs_by_projs_stats.loc[temp_df.index, p] = temp_df["scores"].copy()
+            sigs_by_projs_pvals.loc[temp_df.index, p] = temp_df["pvals_adj"].copy()
+
+    print(sigs_by_projs_stats)
+    stats = np.hstack([scores, sigs_by_projs_stats.to_numpy()]).tolist()
+    pvals = np.hstack([np.zeros_like(scores), sigs_by_projs_pvals.to_numpy()]).tolist()
 
     matrix = ServerSigProjMatrix(
-        sig_labels=sig_labels, proj_labels=proj_labels, zscores=zscores, pvals=pvals
+        sig_labels=sig_labels, proj_labels=proj_labels, zscores=stats, pvals=pvals
     )
     return jsonify(matrix.prepare_json())
 

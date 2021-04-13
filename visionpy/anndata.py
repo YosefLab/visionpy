@@ -3,7 +3,7 @@ from typing import Optional, Union
 import anndata
 import scipy
 from scipy.sparse import issparse
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, chi2_contingency
 import scanpy as sc
 import pandas as pd
 import numpy as np
@@ -150,6 +150,28 @@ class AnnDataAccessor(object):
             )
         self.sig_adata = sig_adata
 
+    def compute_one_vs_all_obs_cols(self):
+        # log for scanpy de
+        obs_adata = anndata.AnnData(np.log1p(self.adata.obs._get_numeric_data().copy()))
+        obs_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
+        for c in self.cat_obs_cols:
+            sc.tl.rank_genes_groups(
+                obs_adata,
+                groupby=c,
+                key_added="rank_genes_groups_{}".format(c),
+                method="wilcoxon",
+            )
+            # for g in categories(obs_adata.obs[c]):
+            #     mask = (obs_adata.obs[c] == g).to_numpy()
+            #     obs_pos_masked = obs_adata.obs.iloc[mask]
+            #     obs_neg_masked = obs_adata.obs.iloc[~mask]
+            #     for j in obs_pos_masked.columns:
+            #         stat, pval, _, _ = chi2_contingency(
+            #             pd.crosstab(obs_pos_masked[c], obs_neg_masked[c])
+            #         )
+
+        self.obs_adata = obs_adata
+
     # TODO: refactor this function
     def compute_gene_score_per_signature(self):
 
@@ -183,3 +205,7 @@ class AnnDataAccessor(object):
             }
 
         self.gene_score_sig = gene_score_sig
+
+
+def categories(col):
+    return col.astype("category").cat.categories
