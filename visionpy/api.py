@@ -54,6 +54,13 @@ def start_vision(
     )
     adata.uns["vision_session_name"] = name
 
+    data_accessor.adata = adata
+    data_accessor.norm_data_key = norm_data_key
+    data_accessor.signature_varm_key = signature_varm_key
+    data_accessor.signature_names_uns_key = signature_names_uns_key
+    data_accessor.compute_obs_df_scores()
+    data_accessor.compute_one_vs_all_obs_cols()
+
     # compute signatures
     if signature_varm_key is not None:
         compute_signature(
@@ -62,17 +69,9 @@ def start_vision(
             signature_varm_key,
             signature_names_uns_key,
         )
-
-    data_accessor.adata = adata
-    data_accessor.norm_data_key = norm_data_key
-    data_accessor.signature_varm_key = signature_varm_key
-    data_accessor.signature_names_uns_key = signature_names_uns_key
-
-    data_accessor.compute_obs_df_scores()
-    data_accessor.compute_signature_scores()
-    data_accessor.compute_one_vs_all_signatures()
-    data_accessor.compute_gene_score_per_signature()
-    data_accessor.compute_one_vs_all_obs_cols()
+        data_accessor.compute_signature_scores()
+        data_accessor.compute_one_vs_all_signatures()
+        data_accessor.compute_gene_score_per_signature()
 
     app = create_app()
     app.run(threaded=False, processes=1, debug=debug)

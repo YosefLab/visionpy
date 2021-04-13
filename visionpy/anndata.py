@@ -168,16 +168,21 @@ class AnnDataAccessor(object):
                 obs_pos_masked = obs_adata.obs.iloc[mask]
                 obs_neg_masked = obs_adata.obs.iloc[~mask]
                 for j in obs_pos_masked.columns:
-                    pos_freq = obs_pos_masked[j].value_counts(normalize=True)
-                    neg_freq = obs_neg_masked[j].value_counts(normalize=True)
+                    pos_freq = obs_pos_masked[j].value_counts(normalize=False)
+                    neg_freq = obs_neg_masked[j].value_counts(normalize=False)
                     freqs = pd.concat([pos_freq, neg_freq], axis=1).fillna(0)
+                    # TODO: cramer's v might be incorrect
+                    grand_total = np.sum(freqs.to_numpy())
+                    r = len(freqs) - 1
                     stat, pval = chisquare(freqs.iloc[0], freqs.iloc[1])
                     if math.isinf(pval) or math.isnan(pval):
                         pval = 0
                     if math.isinf(stat) or math.isnan(stat):
-                        stat = 10000
+                        v = 1
+                    else:
+                        v = np.sqrt(stat / (grand_total * r))
                     obs_adata.uns["chi_sq_{}_{}".format(j, g)] = {
-                        "stat": stat,
+                        "stat": v,
                         "pval": pval,
                     }
 

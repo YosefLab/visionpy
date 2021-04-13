@@ -4,6 +4,7 @@ import scanpy as sc
 import numpy as np
 import pandas as pd
 from flask import Blueprint, jsonify, render_template, request
+from scanpy.get.get import var_df
 from visionpy import data_accessor
 
 bp = Blueprint("api", __name__)
@@ -46,8 +47,8 @@ def get_projection_list():
     # get only numeric columns
     proj_dict["Obs_metadata"] = data_accessor.numeric_obs_cols
 
-    if "X_umap" in adata.obsm_keys():
-        proj_dict.move_to_end("X_umap", last=False)
+    # if "X_umap" in adata.obsm_keys():
+    # proj_dict.move_to_end("X_umap", last=False)
 
     return jsonify(proj_dict)
 
@@ -258,9 +259,17 @@ def get_sigprojmatrix_normal(cluster_variable):
 def get_cell_metadata(cell_id):
     if request.method == "GET":
         cell = adata.obs.loc[cell_id].to_dict()
+        new_cell = {}
         for k, v in cell.items():
-            cell[k] = str(v)
-        return jsonify(cell)
+            if not isinstance(v, str):
+                v_ = np.round(v, 4)
+            else:
+                v_ = v
+            # doesn't work if starts with _
+            if k[0] != "_":
+                new_cell[k] = str(v_)
+        print(new_cell)
+        return jsonify(new_cell)
     else:
         pass
 
