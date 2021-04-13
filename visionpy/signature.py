@@ -47,3 +47,22 @@ def compute_obs_df_scores(adata):
     res.loc[cat_cols, "c_prime"] = cramers_v
 
     return res
+
+
+def compute_signature_scores(adata):
+    """Computes Geary's C for numerical data."""
+    df = adata.obsm["vision_signatures"]
+    # first handle numerical data with geary's
+    # c = gearys_c(adata=adata, vals=numerical_df.to_numpy().transpose())
+    weights = adata.obsp["normalized_connectivities"]
+    gearys_c = _gearys_c(weights, df.to_numpy().transpose())
+    pvals = np.zeros_like(gearys_c)
+    fdr = np.zeros_like(gearys_c)
+
+    # aggregate results
+    res = pd.DataFrame(index=df.columns)
+    res["c_prime"] = 1 - gearys_c
+    res["pvals"] = 0
+    res["fdr"] = 0
+
+    return res

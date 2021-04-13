@@ -87,7 +87,7 @@ def get_session_info():
     info["pooled"] = False
     info["ncells"] = adata.n_obs
     # info[["has_sigs"]] <- length(object@sigData) > 0
-    info["has_sigs"] = False
+    info["has_sigs"] = "vision_signatures" in adata.obsm_keys()
     # TODO: Fix
     info["has_proteins"] = False
     # TODO: Fix
@@ -143,10 +143,32 @@ def get_signature_meta(sig_name):
 
 @bp.route("/Signature/Scores/<sig_name>", methods=["GET"])
 def get_signature_score(sig_name):
-    # TODO
     return jsonify(
-        dict(cells=adata.obs_names.tolist(), values=np.zeros((adata.n_obs).tolist()))
+        dict(
+            cells=adata.obs_names.tolist(),
+            values=adata.obsm["vision_signatures"][sig_name].to_numpy().tolist(),
+        )
     )
+
+
+@bp.route("/Signature/Info/<sig_name>", methods=["GET"])
+def get_signature_info(sig_name):
+    # TODO: IMPLEMENT
+    return jsonify(
+        dict(
+            cells=sig_name,
+            values=0,
+        )
+    )
+
+
+@bp.route("/FilterGroup/SigClusters/Normal", methods=["GET"])
+def get_sigclusters_normal():
+    cols = adata.obsm["vision_signatures"].columns.to_list()
+    clusters = {}
+    for c in cols:
+        clusters[c] = 1
+    return jsonify(clusters)
 
 
 @bp.route("/FilterGroup/SigClusters/Meta", methods=["GET"])
@@ -169,6 +191,28 @@ def get_sigprojmatrix_meta(cluster_variable):
 
     # TODO: properly compute all information
     scores = adata.uns["vision_obs_df_scores"]["c_prime"].to_numpy().reshape(-1, 1)
+    zscores = np.hstack(
+        [scores, np.zeros((len(sig_labels), len(proj_labels) - 1))]
+    ).tolist()
+    pvals = np.zeros_like(zscores).tolist()
+
+    matrix = ServerSigProjMatrix(
+        sig_labels=sig_labels, proj_labels=proj_labels, zscores=zscores, pvals=pvals
+    )
+    return jsonify(matrix.prepare_json())
+
+
+@bp.route("/Clusters/<cluster_variable>/SigProjMatrix/Normal", methods=["GET"])
+def get_sigprojmatrix_normal(cluster_variable):
+
+    sig_labels = adata.obsm["vision_signatures"].columns.tolist()
+    # TODO: amortize computation in metalevels route
+    proj_labels = ["Score"] + list(
+        adata.obs[cluster_variable].astype("category").cat.categories
+    )
+
+    # TODO: properly compute all information
+    scores = adata.uns["vision_signature_scores"]["c_prime"].to_numpy().reshape(-1, 1)
     zscores = np.hstack(
         [scores, np.zeros((len(sig_labels), len(proj_labels) - 1))]
     ).tolist()

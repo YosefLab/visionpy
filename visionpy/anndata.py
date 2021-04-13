@@ -4,7 +4,7 @@ import anndata
 import scipy
 
 from ._compat import Literal
-from .signature import compute_obs_df_scores
+from .signature import compute_obs_df_scores, compute_signature_scores
 
 
 class AnnDataAccessor(object):
@@ -71,3 +71,8 @@ class AnnDataAccessor(object):
 
     def compute_obs_df_scores(self):
         self._adata.uns["vision_obs_df_scores"] = compute_obs_df_scores(self._adata)
+
+    def compute_signature_scores(self):
+        self._adata.uns["vision_signature_scores"] = compute_signature_scores(
+            self._adata
+        )
