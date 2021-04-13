@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 import anndata
 import scipy
+import scanpy as sc
 
 from ._compat import Literal
 from .signature import compute_obs_df_scores, compute_signature_scores
@@ -55,14 +56,14 @@ class AnnDataAccessor(object):
         self._norm_data_key = key
 
     def get_gene_expression(self, gene: str) -> list:
-        if self._adata is None:
+        if self.adata is None:
             raise ValueError("Accessor not populated with anndata.")
         if self.norm_data_key == "use_raw":
-            data = self._adata.raw[:, gene].X
+            data = self.adata.raw[:, gene].X
         elif self.norm_data_key is None:
-            data = self._adata[:, gene].X
+            data = self.adata[:, gene].X
         else:
-            data = self._adata[:, gene].layers[self.norm_data_key]
+            data = self.adata[:, gene].layers[self.norm_data_key]
 
         if scipy.sparse.issparse(data):
             data = data.toarray().ravel()
@@ -70,9 +71,24 @@ class AnnDataAccessor(object):
         return data.tolist()
 
     def compute_obs_df_scores(self):
-        self._adata.uns["vision_obs_df_scores"] = compute_obs_df_scores(self._adata)
+        self.adata.uns["vision_obs_df_scores"] = compute_obs_df_scores(self.adata)
 
     def compute_signature_scores(self):
-        self._adata.uns["vision_signature_scores"] = compute_signature_scores(
-            self._adata
-        )
+        self.adata.uns["vision_signature_scores"] = compute_signature_scores(self.adata)
+
+    def compute_one_vs_all_signatures(self):
+        num_cols = self.adata.obs._get_numeric_data().columns.tolist()
+        cols = self.adata.obs.columns.tolist()
+        cat_vars = list(set(cols) - set(num_cols))
+
+        sig_adata = anndata.AnnData(self.adata.obsm["vision_signatures"])
+        sig_adata.obs = self.adata.obs.loc[:, cat_vars].copy()
+        for c in cat_vars:
+            sc.tl.rank_genes_groups(
+                sig_adata,
+                groupby=c,
+                key_added="rank_genes_groups_{}".format(c),
+                method="wilcoxon",
+            )
+        self.cat_obs_cols = cat_vars
+        self.sig_adata = sig_adata

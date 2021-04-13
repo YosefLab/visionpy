@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import json
+import scanpy as sc
 import numpy as np
 import pandas as pd
 from flask import Blueprint, jsonify, render_template, request
@@ -213,13 +214,25 @@ def get_sigprojmatrix_normal(cluster_variable):
 
     # TODO: properly compute all information
     scores = adata.uns["vision_signature_scores"]["c_prime"].to_numpy().reshape(-1, 1)
-    zscores = np.hstack(
-        [scores, np.zeros((len(sig_labels), len(proj_labels) - 1))]
-    ).tolist()
-    pvals = np.zeros_like(zscores).tolist()
+
+    sigs_by_projs_stats = pd.DataFrame(index=sig_labels, columns=proj_labels[1:])
+    sigs_by_projs_pvals = pd.DataFrame(index=sig_labels, columns=proj_labels[1:])
+    sig_adata = data_accessor.sig_adata
+    for c in data_accessor.cat_obs_cols:
+        for p in proj_labels[1:]:
+            temp_df = sc.get.rank_genes_groups_df(
+                sig_adata, key="rank_genes_groups_{}".format(c), group=p
+            )
+            temp_df.set_index("names", inplace=True)
+            temp_df = temp_df.loc[sigs_by_projs_stats.index]
+            sigs_by_projs_stats[p] = temp_df["scores"].copy()
+            sigs_by_projs_pvals[p] = temp_df["pvals_adj"].copy()
+
+    stats = np.hstack([scores, sigs_by_projs_stats.to_numpy()]).tolist()
+    pvals = np.hstack([np.zeros_like(scores), sigs_by_projs_pvals.to_numpy()]).tolist()
 
     matrix = ServerSigProjMatrix(
-        sig_labels=sig_labels, proj_labels=proj_labels, zscores=zscores, pvals=pvals
+        sig_labels=sig_labels, proj_labels=proj_labels, zscores=stats, pvals=pvals
     )
     return jsonify(matrix.prepare_json())
 
