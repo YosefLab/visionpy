@@ -5,6 +5,7 @@ import scanpy as sc
 import numpy as np
 import pandas as pd
 import click
+from scipy.sparse import csr_matrix, issparse
 from sklearn.preprocessing import normalize
 from visionpy import create_app, data_accessor
 from scanpy.preprocessing._utils import _get_mean_var
@@ -19,7 +20,6 @@ def start_vision(
     signature_varm_key: Optional[str] = None,
     signature_names_uns_key: Optional[str] = None,
     signatures_files: Sequence[str] = None,
-    use_raw_for_signatures: bool = False,
     debug: bool = False,
 ):
     """Wrapper function to start VISION server.
@@ -55,6 +55,7 @@ def start_vision(
     adata.uns["vision_session_name"] = name
 
     # compute signatures
+    use_raw_for_signatures = norm_data_key == "use_raw"
     if signature_varm_key is not None:
         compute_signature(
             adata,
@@ -66,10 +67,13 @@ def start_vision(
 
     data_accessor.adata = adata
     data_accessor.norm_data_key = norm_data_key
+    data_accessor.signature_varm_key = signature_varm_key
+    data_accessor.signature_names_uns_key = signature_names_uns_key
 
     data_accessor.compute_obs_df_scores()
     data_accessor.compute_signature_scores()
     data_accessor.compute_one_vs_all_signatures()
+    data_accessor.compute_gene_score_per_signature()
 
     app = create_app()
     app.run(threaded=False, processes=1, debug=debug)
@@ -93,7 +97,11 @@ def compute_signature(
         if not use_raw_for_signatures
         else adata.raw.varm[signature_varm_key]
     )
-    cell_signature_matrix = np.asarray(gene_expr @ sig_matrix)
+    if not issparse(sig_matrix):
+        if isinstance(sig_matrix, pd.DataFrame):
+            sig_matrix = sig_matrix.to_numpy()
+        sig_matrix = csr_matrix(sig_matrix)
+    cell_signature_matrix = (gene_expr @ sig_matrix).toarray()
     if signature_names_uns_key is not None:
         cols = adata.uns[signature_names_uns_key]
     else:

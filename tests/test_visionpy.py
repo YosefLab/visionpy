@@ -19,5 +19,4 @@ start_vision(
     norm_data_key="use_raw",
     signature_varm_key="signatures",
     signature_names_uns_key="sig_names",
-    use_raw_for_signatures=True,
 )

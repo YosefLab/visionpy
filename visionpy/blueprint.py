@@ -152,11 +152,14 @@ def get_signature_score(sig_name):
 
 @bp.route("/Signature/Info/<sig_name>", methods=["GET"])
 def get_signature_info(sig_name):
-    # TODO: IMPLEMENT
+    info = data_accessor.gene_score_sig[sig_name]
     return jsonify(
         dict(
-            cells=sig_name,
-            values=0,
+            sigDict=info["sigDict"],
+            geneImportance=info["geneImportance"],
+            name=sig_name,
+            source="user-defined",
+            metaData="",
         )
     )
 
@@ -250,7 +253,6 @@ def get_cell_metadata(cell_id):
 def send_cells_meta():
     # TODO: Make nicer
     subset = json.loads(list(dict(request.form.lists()).keys())[0])
-    print(subset)
     df = adata[subset].obs
     numerical_df = df._get_numeric_data()
     num_cols = numerical_df.columns.tolist()
