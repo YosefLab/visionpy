@@ -3,12 +3,13 @@ from typing import Optional, Union
 import anndata
 import scipy
 from scipy.sparse import issparse
-from scipy.stats import pearsonr, chi2_contingency
+from scipy.stats import pearsonr, chisquare
 import scanpy as sc
 import pandas as pd
 import numpy as np
 from ._compat import Literal
 from .signature import compute_obs_df_scores, compute_signature_scores
+import math
 
 
 class AnnDataAccessor(object):
@@ -161,14 +162,23 @@ class AnnDataAccessor(object):
                 key_added="rank_genes_groups_{}".format(c),
                 method="wilcoxon",
             )
-            # for g in categories(obs_adata.obs[c]):
-            #     mask = (obs_adata.obs[c] == g).to_numpy()
-            #     obs_pos_masked = obs_adata.obs.iloc[mask]
-            #     obs_neg_masked = obs_adata.obs.iloc[~mask]
-            #     for j in obs_pos_masked.columns:
-            #         stat, pval, _, _ = chi2_contingency(
-            #             pd.crosstab(obs_pos_masked[c], obs_neg_masked[c])
-            #         )
+            for g in categories(obs_adata.obs[c]):
+                mask = (obs_adata.obs[c] == g).to_numpy()
+                obs_pos_masked = obs_adata.obs.iloc[mask]
+                obs_neg_masked = obs_adata.obs.iloc[~mask]
+                for j in obs_pos_masked.columns:
+                    pos_freq = obs_pos_masked[j].value_counts(normalize=True)
+                    neg_freq = obs_neg_masked[j].value_counts(normalize=True)
+                    freqs = pd.concat([pos_freq, neg_freq], axis=1).fillna(0)
+                    stat, pval = chisquare(freqs.iloc[0], freqs.iloc[1])
+                    if math.isinf(pval) or math.isnan(pval):
+                        pval = 0
+                    if math.isinf(stat) or math.isnan(stat):
+                        stat = 10000
+                    obs_adata.uns["chi_sq_{}_{}".format(j, g)] = {
+                        "stat": stat,
+                        "pval": pval,
+                    }
 
         self.obs_adata = obs_adata
 

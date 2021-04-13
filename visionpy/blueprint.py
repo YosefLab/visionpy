@@ -199,17 +199,19 @@ def get_sigprojmatrix_meta(cluster_variable):
         index=sig_labels, columns=proj_labels[1:], data=0
     )
     obs_adata = data_accessor.obs_adata
-    for c in data_accessor.cat_obs_cols:
-        # TODO: test for categorical data with chi sq
-        for p in proj_labels[1:]:
-            temp_df = sc.get.rank_genes_groups_df(
-                obs_adata, key="rank_genes_groups_{}".format(c), group=p
-            )
-            temp_df.set_index("names", inplace=True)
-            sigs_by_projs_stats.loc[temp_df.index, p] = temp_df["scores"].copy()
-            sigs_by_projs_pvals.loc[temp_df.index, p] = temp_df["pvals_adj"].copy()
+    # TODO: test for categorical data with chi sq
+    for p in proj_labels[1:]:
+        temp_df = sc.get.rank_genes_groups_df(
+            obs_adata, key="rank_genes_groups_{}".format(cluster_variable), group=p
+        )
+        temp_df.set_index("names", inplace=True)
+        sigs_by_projs_stats.loc[temp_df.index, p] = temp_df["scores"].copy()
+        sigs_by_projs_pvals.loc[temp_df.index, p] = temp_df["pvals_adj"].copy()
+        for cat_c in data_accessor.cat_obs_cols:
+            key = "chi_sq_{}_{}".format(cluster_variable, p)
+            sigs_by_projs_stats.loc[cat_c, p] = obs_adata.uns[key]["stat"]
+            sigs_by_projs_pvals.loc[cat_c, p] = obs_adata.uns[key]["pval"]
 
-    print(sigs_by_projs_stats)
     stats = np.hstack([scores, sigs_by_projs_stats.to_numpy()]).tolist()
     pvals = np.hstack([np.zeros_like(scores), sigs_by_projs_pvals.to_numpy()]).tolist()
 
@@ -234,15 +236,14 @@ def get_sigprojmatrix_normal(cluster_variable):
     sigs_by_projs_stats = pd.DataFrame(index=sig_labels, columns=proj_labels[1:])
     sigs_by_projs_pvals = pd.DataFrame(index=sig_labels, columns=proj_labels[1:])
     sig_adata = data_accessor.sig_adata
-    for c in data_accessor.cat_obs_cols:
-        for p in proj_labels[1:]:
-            temp_df = sc.get.rank_genes_groups_df(
-                sig_adata, key="rank_genes_groups_{}".format(c), group=p
-            )
-            temp_df.set_index("names", inplace=True)
-            temp_df = temp_df.loc[sigs_by_projs_stats.index]
-            sigs_by_projs_stats[p] = temp_df["scores"].copy()
-            sigs_by_projs_pvals[p] = temp_df["pvals_adj"].copy()
+    for p in proj_labels[1:]:
+        temp_df = sc.get.rank_genes_groups_df(
+            sig_adata, key="rank_genes_groups_{}".format(cluster_variable), group=p
+        )
+        temp_df.set_index("names", inplace=True)
+        temp_df = temp_df.loc[sigs_by_projs_stats.index]
+        sigs_by_projs_stats[p] = temp_df["scores"].copy()
+        sigs_by_projs_pvals[p] = temp_df["pvals_adj"].copy()
 
     stats = np.hstack([scores, sigs_by_projs_stats.to_numpy()]).tolist()
     pvals = np.hstack([np.zeros_like(scores), sigs_by_projs_pvals.to_numpy()]).tolist()
