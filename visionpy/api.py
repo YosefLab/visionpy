@@ -55,12 +55,10 @@ def start_vision(
     adata.uns["vision_session_name"] = name
 
     # compute signatures
-    use_raw_for_signatures = norm_data_key == "use_raw"
     if signature_varm_key is not None:
         compute_signature(
             adata,
             norm_data_key,
-            use_raw_for_signatures,
             signature_varm_key,
             signature_names_uns_key,
         )
@@ -82,10 +80,10 @@ def start_vision(
 def compute_signature(
     adata: anndata.AnnData,
     norm_data_key: str,
-    use_raw_for_signatures: bool,
     signature_varm_key: str,
     signature_names_uns_key: str,
 ):
+    use_raw_for_signatures = norm_data_key == "use_raw"
     if norm_data_key is None:
         gene_expr = adata.X
     elif norm_data_key == "use_raw":

@@ -110,6 +110,7 @@ class AnnDataAccessor(object):
             return data
 
     def get_genes_by_signature(self, sig_name: str) -> pd.DataFrame:
+        """Df of genes in index, sign as values."""
         index = np.where(
             np.asarray(self.adata.uns[self.signature_names_uns_key]) == sig_name
         )[0][0]
