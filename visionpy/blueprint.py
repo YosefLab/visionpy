@@ -1,5 +1,5 @@
 from collections import OrderedDict
-
+import json
 import numpy as np
 import pandas as pd
 from flask import Blueprint, jsonify, render_template, request
@@ -188,12 +188,35 @@ def get_cell_metadata(cell_id):
             cell[k] = str(v)
         return jsonify(cell)
     else:
-        # TODO IMPLEMENT
-        # get subset from json postBody
-        # adata.obs == METADATA
-        # adata.obs._get_numeric_data() is a dataframe subset with numeric columns
-        # need dict[column] = dict with keys ("Min", "Median", "Max") for numeric columns
-        # for categorical obs
-        # need dict[column] = dict with keys (categories of column) value is frequency (e.g., 90 for 90%)
-        # take two dictionaries and put in dictionary with key "numeric" for first, "factor" for second
         pass
+
+
+@bp.route("/Cells/Meta", methods=["POST"])
+def send_cells_meta():
+    # TODO: Make nicer
+    subset = json.loads(list(dict(request.form.lists()).keys())[0])
+    print(subset)
+    df = adata[subset].obs
+    numerical_df = df._get_numeric_data()
+    num_cols = numerical_df.columns.tolist()
+    cols = adata.obs.columns.tolist()
+    cat_cols = list(set(cols) - set(num_cols))
+    categorical_df = df.loc[:, cat_cols]
+
+    num_percentiles = np.percentile(numerical_df, [0, 50, 100], axis=0)
+    numerical_stats = {}
+    for i, c in enumerate(numerical_df.columns):
+        numerical_stats[c] = {
+            "Min": num_percentiles[0, i],
+            "Median": num_percentiles[1, i],
+            "Max": num_percentiles[2, i],
+        }
+
+    categorical_stats = {}
+    for c in categorical_df.columns:
+        dist = (categorical_df[c].value_counts(normalize=True) * 100).to_dict()
+        categorical_stats[c] = dist
+
+    return_dict = dict(numeric=numerical_stats, factor=categorical_stats)
+
+    return jsonify(return_dict)

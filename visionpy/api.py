@@ -2,12 +2,21 @@ from typing import Optional, Union
 
 import anndata
 import scanpy as sc
+import click
 from sklearn.preprocessing import normalize
 from visionpy import create_app, data_accessor
 
 from ._compat import Literal
 
 
+@click.command()
+@click.option("--adata", prompt="Path to anndata.", help="Test")
+@click.option("--name", prompt="Name of VISION session.")
+@click.option("--norm_data_key", default=None, prompt="Name of VISION session.")
+@click.option(
+    "--compute_neighbors_on_key", default=None, prompt="Name of VISION session."
+)
+@click.option("--debug", default=False, prompt="Name of VISION session.")
 def start_vision(
     adata: Union[str, anndata.AnnData],
     name: str,

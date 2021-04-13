@@ -32,6 +32,7 @@ version = "1.0"
 [tool.poetry.dependencies]
 anndata = ">=0.7.5"
 black = {version = ">=20.8b1", optional = true}
+click = "*"
 codecov = {version = ">=2.0.8", optional = true}
 flake8 = {version = ">=3.7.7", optional = true}
 flask = "*"
@@ -84,4 +85,4 @@ requires = [
 ]
 
 [tool.poetry.scripts]
-visionpy = "visionpy.launch:run"
+visionpy = "visionpy.api:start_vision"
