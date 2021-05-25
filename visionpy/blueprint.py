@@ -121,7 +121,17 @@ def get_clusters_cluster_var_cells(cluster_variable):
 @bp.route("/Cells/Selections", methods=["GET"])
 def get_cells_selections():
 
-    return jsonify([])
+    return jsonify(list(data_accessor.cells_selections))
+
+
+@bp.route("/Cells/Selections/<selection_id>", methods=["GET", "POST"])
+def get_cells_selections_sel_id(selection_id):
+    if request.method == "GET":
+        return jsonify(data_accessor.get_cells_selection(selection_id))
+    else:
+        subset = json.loads(list(dict(request.form.lists()).keys())[0])
+        data_accessor.add_cells_selection(selection_id, subset)
+        return jsonify([])
 
 
 @bp.route("/Expression/Genes/List", methods=["GET"])

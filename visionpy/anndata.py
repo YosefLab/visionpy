@@ -41,6 +41,7 @@ class AnnDataAccessor(object):
         self._norm_data_key = norm_data_key
         self._signature_varm_key = signature_varm_key
         self._signature_names_uns_key = signature_names_uns_key
+        self._cells_selections = {}
 
     @property
     def adata(self):
@@ -52,6 +53,16 @@ class AnnDataAccessor(object):
             return self.adata.raw.var_names
         else:
             return self.adata.var_names
+
+    @property
+    def cells_selections(self):
+        return self._cells_selections.keys()
+
+    def add_cells_selection(self, key, val):
+        self._cells_selections[key] = val
+
+    def get_cells_selection(self, key):
+        return self._cells_selections[key]
 
     @adata.setter
     def adata(self, adata: anndata.AnnData):
