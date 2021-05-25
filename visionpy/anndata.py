@@ -1,15 +1,16 @@
+import math
 from typing import Optional, Union
 
 import anndata
+import numpy as np
+import pandas as pd
 import scipy
 from scipy.sparse import issparse
-from scipy.stats import pearsonr, chisquare
-import scanpy as sc
-import pandas as pd
-import numpy as np
+from scipy.stats import chisquare, pearsonr
+
 from ._compat import Literal
+from .diffexp import rank_genes_groups
 from .signature import compute_obs_df_scores, compute_signature_scores
-import math
 
 
 class AnnDataAccessor(object):
@@ -144,7 +145,7 @@ class AnnDataAccessor(object):
         sig_adata = anndata.AnnData(self.adata.obsm["vision_signatures"])
         sig_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
         for c in self.cat_obs_cols:
-            sc.tl.rank_genes_groups(
+            rank_genes_groups(
                 sig_adata,
                 groupby=c,
                 key_added="rank_genes_groups_{}".format(c),
@@ -157,7 +158,7 @@ class AnnDataAccessor(object):
         obs_adata = anndata.AnnData(np.log1p(self.adata.obs._get_numeric_data().copy()))
         obs_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
         for c in self.cat_obs_cols:
-            sc.tl.rank_genes_groups(
+            rank_genes_groups(
                 obs_adata,
                 groupby=c,
                 key_added="rank_genes_groups_{}".format(c),

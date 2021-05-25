@@ -1,10 +1,12 @@
-from collections import OrderedDict
 import json
-import scanpy as sc
+from collections import OrderedDict
+
 import numpy as np
 import pandas as pd
+import scanpy as sc
 from flask import Blueprint, jsonify, render_template, request
 from scanpy.get.get import var_df
+
 from visionpy import data_accessor
 
 bp = Blueprint("api", __name__)

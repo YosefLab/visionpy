@@ -1,8 +1,8 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+from scanpy.metrics._gearys_c import _gearys_c
 from scipy.sparse import csr_matrix
 from scipy.stats import chi2_contingency
-from scanpy.metrics._gearys_c import _gearys_c
 
 
 def compute_obs_df_scores(adata):

@@ -1,14 +1,16 @@
 from typing import Optional, Sequence, Union
 
 import anndata
-import scanpy as sc
+import click
 import numpy as np
 import pandas as pd
-import click
+import scanpy as sc
+from scanpy.preprocessing._utils import _get_mean_var
 from scipy.sparse import csr_matrix, issparse
 from sklearn.preprocessing import normalize
+
 from visionpy import create_app, data_accessor
-from scanpy.preprocessing._utils import _get_mean_var
+
 from ._compat import Literal
 
 

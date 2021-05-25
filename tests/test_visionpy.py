@@ -1,7 +1,8 @@
-from visionpy.api import start_vision
-import scanpy
-import pandas as pd
 import numpy as np
+import pandas as pd
+import scanpy
+
+from visionpy.api import start_vision
 
 adata = scanpy.datasets.pbmc3k_processed()
 N_SIGS = 10
