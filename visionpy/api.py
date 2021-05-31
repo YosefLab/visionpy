@@ -22,6 +22,7 @@ def start_vision(
     signature_varm_key: Optional[str] = None,
     signature_names_uns_key: Optional[str] = None,
     signatures_files: Sequence[str] = None,
+    port: Optional[int] = None,
     debug: bool = False,
 ):
     """Wrapper function to start VISION server.
@@ -39,6 +40,8 @@ def start_vision(
         Key in `adata.obsm` to use for computing neighbors. If `None`, use
         neighbors stored in `adata`. If no neighbors have been previously
         computed an error will be raised.
+    port
+        The port of the webserver. Defaults to 5000.
     """
 
     if isinstance(adata, str):
@@ -76,7 +79,7 @@ def start_vision(
         data_accessor.compute_gene_score_per_signature()
 
     app = create_app()
-    app.run(threaded=False, processes=1, debug=debug)
+    app.run(threaded=False, processes=1, debug=debug, port=port)
 
 
 def compute_signature(
