@@ -169,12 +169,19 @@ class AnnDataAccessor(object):
         obs_adata = anndata.AnnData(np.log1p(self.adata.obs._get_numeric_data().copy()))
         obs_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
         for c in self.cat_obs_cols:
-            rank_genes_groups(
-                obs_adata,
-                groupby=c,
-                key_added="rank_genes_groups_{}".format(c),
-                method="wilcoxon",
-            )
+            try:
+                rank_genes_groups(
+                    obs_adata,
+                    groupby=c,
+                    key_added="rank_genes_groups_{}".format(c),
+                    method="wilcoxon",
+                )
+            # one category only has one obs
+            except ValueError:
+                # TODO: Log it
+                self.cat_obs_cols = [c_ for c_ in self.cat_obs_cols if c_ != c]
+                continue
+
             for g in categories(obs_adata.obs[c]):
                 mask = (obs_adata.obs[c] == g).to_numpy()
                 obs_pos_masked = obs_adata.obs.iloc[mask]

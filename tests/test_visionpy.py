@@ -23,7 +23,7 @@ start_vision(
 )
 
 
-# adata = scanpy.read("/Users/adamgayoso/Downloads/adata_core.h5ad")
+# adata = scanpy.read("adata_core.h5ad")
 
 # start_vision(
 #     adata,

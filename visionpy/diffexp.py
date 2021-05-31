@@ -108,8 +108,10 @@ class _RankGenes:
 
         if len(invalid_groups_selected) > 0:
             raise ValueError(
-                "Could not calculate statistics for groups {} since they only "
-                "contain one sample.".format(", ".join(invalid_groups_selected))
+                "Could not calculate statistics for groups {} in {} since they only "
+                "contain one sample.".format(
+                    ", ".join(invalid_groups_selected), groupby
+                )
             )
 
         adata_comp = adata
