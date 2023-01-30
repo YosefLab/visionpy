@@ -19,3 +19,7 @@ pip install visionpy
 ```
 
 ## How to run visionpy
+
+```
+visionpy --adata ./my_adata.h5ad --norm_data_key use_raw --compute_neighbors_on_key X_scvi --name Test Vision
+```
