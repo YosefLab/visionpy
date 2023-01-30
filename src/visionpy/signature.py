@@ -198,15 +198,17 @@ def compute_signature_anndata(
     else:
         gene_expr = adata.layers[norm_data_key]
     sig_matrix = adata.varm[signature_varm_key] if not use_raw_for_signatures else adata.raw.varm[signature_varm_key]
+    if signature_names_uns_key is not None:
+        cols = adata.uns[signature_names_uns_key]
+    elif isinstance(sig_matrix, pd.DataFrame):
+        cols = sig_matrix.columns
+    else:
+        cols = [f"signature_{i}" for i in range(sig_matrix.shape[1])]
     if not issparse(sig_matrix):
         if isinstance(sig_matrix, pd.DataFrame):
             sig_matrix = sig_matrix.to_numpy()
         sig_matrix = csr_matrix(sig_matrix)
     cell_signature_matrix = (gene_expr @ sig_matrix).toarray()
-    if signature_names_uns_key is not None:
-        cols = adata.uns[signature_names_uns_key]
-    else:
-        cols = None
     sig_df = pd.DataFrame(data=cell_signature_matrix, columns=cols, index=adata.obs_names)
     # normalize
     mean, var = _get_mean_var(gene_expr, axis=1)

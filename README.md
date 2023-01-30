@@ -20,6 +20,25 @@ pip install visionpy
 
 ## How to run visionpy
 
+### From the command line
+
 ```
 visionpy --adata ./my_adata.h5ad --norm_data_key use_raw --compute_neighbors_on_key X_scvi --name Test Vision
+```
+
+### From Python
+
+```python
+from visionpy.api import start_vision
+from visionpy import signatures_from_gmt
+
+adata.varm["signatures"] = signatures_from_gmt(["./signatures.gmt"], adata)
+start_vision(
+    adata=adata,
+    name="Test Session",
+    norm_data_key="log1pcp10k",
+    compute_neighbors_on_key="X_pca",
+    signture_varm_key="signatures",
+    name="Test Vision",
+)
 ```

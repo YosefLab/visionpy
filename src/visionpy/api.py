@@ -76,6 +76,12 @@ def start_vision(
         Key in `adata.obsm` to use for computing neighbors. If `None`, use
         neighbors stored in `adata`. If no neighbors have been previously
         computed an error will be raised.
+    signature_varm_key
+        Key in `adata.varm` for signatures. If `None` (default), no signatures. Matrix
+        should encode positive genes with 1, negative genes with -1, and all other genes with 0
+    signature_names_uns_key
+        Key in `adata.uns` for signature names. If `None`, attempts to read columns if `signature_varm_key`
+        is a pandas DataFrame. Otherwise, uses `Signature_1`, `Signature_2`, etc.
     port
         The port of the webserver. Defaults to 5000.
     """
