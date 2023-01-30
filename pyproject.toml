@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 
 [project]
-name = "visionpy"
+name = "visionpy-sc"
 version = "0.0.1"
 description = "Signature Analysis and Visualization for Single-Cell RNA-seq"
 readme = "README.md"

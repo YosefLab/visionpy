@@ -12,8 +12,7 @@ from rich.logging import RichHandler
 from .anndata import AnnDataAccessor
 from .signature import compute_signatures_anndata, signatures_from_gmt
 
-package_name = "visionpy"
-__version__ = version(package_name)
+__version__ = version("visionpy-sc")
 
 logger = logging.getLogger(__name__)
 # set the logging level
@@ -24,7 +23,7 @@ console = Console(force_terminal=True)
 if console.is_jupyter is True:
     console.is_jupyter = False
 ch = RichHandler(show_path=False, console=console, show_time=False)
-formatter = logging.Formatter(f"{package_name}: %(message)s")
+formatter = logging.Formatter("visionpy: %(message)s")
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 

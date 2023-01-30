@@ -35,7 +35,7 @@ pip install visionpy
 1. Install the latest release on PyPI:
 
 ```bash
-pip install visionpy
+pip install visionpy-sc
 ```
 
 2. Install the latest development version:
