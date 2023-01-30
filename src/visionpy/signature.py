@@ -1,5 +1,5 @@
 from re import compile, match
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Literal, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -183,13 +183,28 @@ def read_gmt(
     return signed_sign
 
 
-def compute_signature_anndata(
+def compute_signatures_anndata(
     adata: AnnData,
-    norm_data_key: str,
+    norm_data_key: Union[Literal["use_raw"], str],
     signature_varm_key: str,
     signature_names_uns_key: str,
 ) -> None:
-    """Compute signatures for each cell."""
+    """
+    Compute signatures for each cell.
+
+    Parameters
+    ----------
+    adata
+        AnnData object to compute signatures for.
+    norm_data_key
+        Key for adata.layers to use for signature computation. If "use_raw", use adata.raw.X.
+    signature_varm_key
+        Key in `adata.varm` for signatures. If `None` (default), no signatures. Matrix
+        should encode positive genes with 1, negative genes with -1, and all other genes with 0
+    signature_names_uns_key
+        Key in `adata.uns` for signature names. If `None`, attempts to read columns if `signature_varm_key`
+        is a pandas DataFrame. Otherwise, uses `Signature_1`, `Signature_2`, etc.
+    """
     use_raw_for_signatures = norm_data_key == "use_raw"
     if norm_data_key is None:
         gene_expr = adata.X

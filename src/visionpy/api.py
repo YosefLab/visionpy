@@ -7,7 +7,7 @@ from sklearn.preprocessing import normalize
 
 from visionpy import create_app, data_accessor
 
-from .signature import compute_signature_anndata
+from .signature import compute_signatures_anndata
 
 
 def _prepare_vision(
@@ -40,7 +40,7 @@ def _prepare_vision(
 
     # compute signatures
     if signature_varm_key is not None:
-        compute_signature_anndata(
+        compute_signatures_anndata(
             adata,
             norm_data_key,
             signature_varm_key,

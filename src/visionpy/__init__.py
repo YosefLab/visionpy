@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 from .anndata import AnnDataAccessor
-from .signature import signatures_from_gmt
+from .signature import compute_signatures_anndata, signatures_from_gmt
 
 package_name = "visionpy"
 __version__ = version(package_name)
