@@ -41,15 +41,12 @@ def app():
 def get_projection_list():
     """Returns dict of col names for each projection."""
     proj_dict = OrderedDict()
+    # get only numeric columns
+    proj_dict["Obs_metadata"] = data_accessor.numeric_obs_cols
     for k in adata.obsm_keys():
         if k[:2] == "X_":
             name = k.split("_")[1]
             proj_dict[k] = [name.upper() + f"{i + 1}" for i in range(adata.obsm[k].shape[1])]
-    # get only numeric columns
-    proj_dict["Obs_metadata"] = data_accessor.numeric_obs_cols
-
-    # if "X_umap" in adata.obsm_keys():
-    # proj_dict.move_to_end("X_umap", last=False)
 
     return jsonify(proj_dict)
 
