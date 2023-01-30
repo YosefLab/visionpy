@@ -80,7 +80,7 @@ def signatures_from_gmt(
     gmt_files: Sequence[str],
     adata: AnnData,
     use_raw: bool = False,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> pd.DataFrame:
     """
     Compute signature scores from .gmt files.
 
@@ -105,7 +105,7 @@ def signatures_from_gmt(
     Returns
     -------
     Genes by signatures dataframe and cells by signatures dataframe
-    with scores.
+    with scores. Index is aligned to genes from adata.
     """
     sig_dict = {}
     for gmt_file in gmt_files:

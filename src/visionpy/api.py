@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Sequence, Union
+from typing import Literal, Optional, Union
 
 import anndata
 import click
@@ -17,7 +17,6 @@ def _prepare_vision(
     compute_neighbors_on_key: Optional[str] = None,
     signature_varm_key: Optional[str] = None,
     signature_names_uns_key: Optional[str] = None,
-    signatures_files: Sequence[str] = None,
 ):
     if isinstance(adata, str):
         adata = anndata.read(str)
@@ -59,7 +58,6 @@ def start_vision(
     compute_neighbors_on_key: Optional[str] = None,
     signature_varm_key: Optional[str] = None,
     signature_names_uns_key: Optional[str] = None,
-    signatures_files: Sequence[str] = None,
     port: Optional[int] = None,
     debug: bool = False,
 ):
@@ -88,7 +86,6 @@ def start_vision(
         compute_neighbors_on_key=compute_neighbors_on_key,
         signature_varm_key=signature_varm_key,
         signature_names_uns_key=signature_names_uns_key,
-        signatures_files=signatures_files,
     )
     app = create_app()
     app.run(threaded=False, processes=1, debug=debug, port=port)
