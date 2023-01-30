@@ -19,10 +19,29 @@ This is a Python port of the VISION [R package](https://github.com/yoseflab/visi
 
 ## Installing visionpy
 
-We recommend installing visionpy via PyPI using pip:
+You need to have Python 3.8 or newer installed on your system. If you don't have
+Python installed, we recommend installing [Miniconda](https://docs.conda.io/en/latest/miniconda.html).
 
-```
+There are several alternative options to install visionpy:
+
+<!--
+1) Install the latest release of `visionpy` from `PyPI <https://pypi.org/project/visionpy/>`_:
+
+```bash
 pip install visionpy
+```
+-->
+
+1. Install the latest release on PyPI:
+
+```bash
+pip install visionpy
+```
+
+2. Install the latest development version:
+
+```bash
+pip install git+https://github.com/yoseflab/visionpy.git@main
 ```
 
 ## How to run visionpy
