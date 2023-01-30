@@ -17,7 +17,6 @@ def test_preparation(save_path):
     _prepare_vision(
         adata,
         name="Test session",
-        debug=False,
         norm_data_key="use_raw",
         signature_varm_key="signatures",
         signature_names_uns_key="sig_names",
