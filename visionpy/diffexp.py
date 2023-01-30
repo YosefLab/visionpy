@@ -6,14 +6,13 @@ https://github.com/theislab/scanpy/blob/master/scanpy/tools/_rank_genes_groups.p
 Modified to output AUC for Wilcoxon score
 """
 from math import floor
-from typing import Iterable, Optional, Union
+from typing import Iterable, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
 from anndata import AnnData
 from scanpy import _utils
 from scanpy import logging as logg
-from scanpy._compat import Literal
 from scanpy._utils import check_nonnegative_integers
 from scanpy.preprocessing._simple import _get_mean_var
 from scipy.sparse import issparse, vstack
@@ -77,7 +76,7 @@ def _tiecorrect(ranks):
     idx = np.sort(idx, axis=0)
     cnt = np.diff(idx, axis=0).astype(np.float64)
 
-    return 1.0 - (cnt ** 3 - cnt).sum(axis=0) / (size ** 3 - size)
+    return 1.0 - (cnt**3 - cnt).sum(axis=0) / (size**3 - size)
 
 
 class _RankGenes:
@@ -91,7 +90,6 @@ class _RankGenes:
         layer=None,
         comp_pts=False,
     ):
-
         if "log1p" in adata.uns_keys() and adata.uns["log1p"]["base"] is not None:
             self.expm1_func = lambda x: np.expm1(x * np.log(adata.uns["log1p"]["base"]))
         else:
@@ -300,7 +298,6 @@ class _RankGenes:
         tie_correct=False,
         **kwds,
     ):
-
         if method in {"t-test", "t-test_overestim_var"}:
             generate_test_results = self.t_test(method)
         elif method == "wilcoxon":
@@ -380,7 +377,7 @@ def rank_genes_groups(
     layer: Optional[str] = None,
     **kwds,
 ) -> Optional[AnnData]:
-    """\
+    """
     Rank genes for characterizing groups.
 
     Expects logarithmized data.

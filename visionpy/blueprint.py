@@ -94,7 +94,6 @@ def get_session_info():
     # info[["pooled"]] <- object@params$micropooling$pool
     info["pooled"] = False
     info["ncells"] = adata.n_obs
-    # info[["has_sigs"]] <- length(object@sigData) > 0
     info["has_sigs"] = "vision_signatures" in adata.obsm_keys()
     # TODO: Fix
     info["has_proteins"] = False
@@ -312,3 +311,51 @@ def send_cells_meta():
     return_dict = dict(numeric=numerical_stats, factor=categorical_stats)
 
     return jsonify(return_dict)
+
+
+@bp.route("/DE", methods=["POST"])
+def send_de():
+    """Differential expression analysis."""
+    # load request with json
+    content = json.loads(list(request.form.to_dict().keys())[0])
+    type_n = content["type_n"]
+    type_d = content["type_d"]
+    subtype_n = content["subtype_n"]
+    subtype_d = content["subtype_d"]
+    group_num = content["group_num"]
+    group_denom = content["group_denom"]
+
+    if type_n == "current":
+        cell_ids_1 = subtype_n
+    elif type_n == "saved_selection":
+        # TODO: not implemented, saved selections should be a dict
+        cell_ids_1 = adata.get_cells_selection(subtype_n)
+    elif type_n == "meta":
+        cell_ids_1 = adata.obs[adata.obs[subtype_n] == group_num].index.tolist()
+    else:
+        raise ValueError("type_n not recognized")
+
+    if type_d == "current":
+        cell_ids_2 = subtype_d
+    elif type_d == "saved_selection":
+        cell_ids_2 = adata.get_cells_selection(subtype_d)
+    elif type_d == "meta":
+        cell_ids_2 = adata.obs[adata.obs[subtype_d] == group_denom].index.tolist()
+
+    adata.obs["_vision_de_cache"] = "None"
+    adata.obs.loc[cell_ids_1, "_vision_de_cache"] = "numerator"
+    adata.obs.loc[cell_ids_2, "_vision_de_cache"] = "denominator"
+
+    de_res = data_accessor.compute_one_vs_one_de(
+        "_vision_de_cache", "numerator", "denominator"
+    )
+
+    send_de_res = dict(
+        logFC=de_res["logfoldchanges"].tolist(),
+        pval=de_res["pvals_adj"].tolist(),
+        stat=de_res["scores"].tolist(),
+        Feature=de_res["names"].tolist(),
+        Type=["Gene"] * len(de_res),
+    )
+
+    return jsonify(send_de_res)

@@ -1,14 +1,14 @@
 import math
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import anndata
 import numpy as np
 import pandas as pd
+import scanpy as sc
 import scipy
 from scipy.sparse import issparse
 from scipy.stats import chisquare, pearsonr
 
-from ._compat import Literal
 from .diffexp import rank_genes_groups
 from .signature import compute_obs_df_scores, compute_signature_scores
 
@@ -245,6 +245,21 @@ class AnnDataAccessor:
             }
 
         self.gene_score_sig = gene_score_sig
+
+    def compute_one_vs_one_de(self, key: str, group1: str, group2: str):
+        rank_genes_groups(
+            self.adata,
+            groupby=key,
+            groups=[group1],
+            reference=group2,
+            key_added=f"rank_genes_groups_{key}",
+            method="wilcoxon",
+            use_raw=self.norm_data_key == "use_raw",
+            layer=self.norm_data_key if self.norm_data_key != "use_raw" else None,
+        )
+        return sc.get.rank_genes_groups_df(
+            self.adata, group1, key=f"rank_genes_groups_{key}"
+        )
 
 
 def categories(col):

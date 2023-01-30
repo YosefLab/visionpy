@@ -11,12 +11,12 @@ adata.raw.varm["signatures"] = pd.DataFrame(
 )
 adata.raw.varm["signatures"].iloc[:20] = 1
 adata.raw.varm["signatures"].iloc[-25:] = -1
-adata.uns["sig_names"] = ["Sig_{}".format(i) for i in range(N_SIGS)]
+adata.uns["sig_names"] = [f"Sig_{i}" for i in range(N_SIGS)]
 
 start_vision(
     adata,
     name="Test session",
-    debug=True,
+    debug=False,
     norm_data_key="use_raw",
     signature_varm_key="signatures",
     signature_names_uns_key="sig_names",
