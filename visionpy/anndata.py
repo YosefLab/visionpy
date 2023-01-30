@@ -13,7 +13,7 @@ from .diffexp import rank_genes_groups
 from .signature import compute_obs_df_scores, compute_signature_scores
 
 
-class AnnDataAccessor(object):
+class AnnDataAccessor:
     def __init__(
         self,
         adata: Optional[anndata.AnnData] = None,
@@ -152,14 +152,13 @@ class AnnDataAccessor(object):
         self.adata.uns["vision_signature_scores"] = compute_signature_scores(self.adata)
 
     def compute_one_vs_all_signatures(self):
-
         sig_adata = anndata.AnnData(self.adata.obsm["vision_signatures"])
         sig_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
         for c in self.cat_obs_cols:
             rank_genes_groups(
                 sig_adata,
                 groupby=c,
-                key_added="rank_genes_groups_{}".format(c),
+                key_added=f"rank_genes_groups_{c}",
                 method="wilcoxon",
             )
         self.sig_adata = sig_adata
@@ -173,7 +172,7 @@ class AnnDataAccessor(object):
                 rank_genes_groups(
                     obs_adata,
                     groupby=c,
-                    key_added="rank_genes_groups_{}".format(c),
+                    key_added=f"rank_genes_groups_{c}",
                     method="wilcoxon",
                 )
             # one category only has one obs
@@ -193,17 +192,21 @@ class AnnDataAccessor(object):
                     # TODO: cramer's v might be incorrect
                     grand_total = np.sum(freqs.to_numpy())
                     r = len(freqs) - 1
-                    stat, pval = chisquare(
-                        freqs.iloc[:, 0].to_numpy().ravel(),
-                        freqs.iloc[:, 1].to_numpy().ravel(),
-                    )
-                    if math.isinf(pval) or math.isnan(pval):
+                    try:
+                        stat, pval = chisquare(
+                            freqs.iloc[:, 0].to_numpy().ravel(),
+                            freqs.iloc[:, 1].to_numpy().ravel(),
+                        )
+                    except ValueError:
+                        stat = grand_total * r  # so that v is 1
                         pval = 0
+                    if math.isinf(pval) or math.isnan(pval):
+                        pval = 1
                     if math.isinf(stat) or math.isnan(stat):
                         v = 1
                     else:
                         v = np.sqrt(stat / (grand_total * r))
-                    obs_adata.uns["chi_sq_{}_{}".format(j, g)] = {
+                    obs_adata.uns[f"chi_sq_{j}_{g}"] = {
                         "stat": v,
                         "pval": pval,
                     }
@@ -212,7 +215,6 @@ class AnnDataAccessor(object):
 
     # TODO: refactor this function
     def compute_gene_score_per_signature(self):
-
         gene_score_sig = {}
         sig_names = self.adata.uns[self.signature_names_uns_key]
         for s in sig_names:

@@ -1,11 +1,12 @@
 import json
 from collections import OrderedDict
+from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 import pandas as pd
 import scanpy as sc
 from flask import Blueprint, jsonify, render_template, request
-from scanpy.get.get import var_df
 
 from visionpy import data_accessor
 
@@ -14,12 +15,12 @@ bp = Blueprint("api", __name__)
 adata = data_accessor.adata
 
 
+@dataclass
 class ServerSigProjMatrix:
-    def __init__(self, zscores, pvals, proj_labels, sig_labels) -> None:
-        self.zscores = zscores
-        self.pvals = pvals
-        self.proj_labels = proj_labels
-        self.sig_labels = sig_labels
+    zscores: List[float]
+    pvals: List[float]
+    proj_labels: List[str]
+    sig_labels: List[str]
 
     def prepare_json(self):
         return {
@@ -44,7 +45,7 @@ def get_projection_list():
         if k[:2] == "X_":
             name = k.split("_")[1]
             proj_dict[k] = [
-                name.upper() + "{}".format(i + 1) for i in range(adata.obsm[k].shape[1])
+                name.upper() + f"{i + 1}" for i in range(adata.obsm[k].shape[1])
             ]
     # get only numeric columns
     proj_dict["Obs_metadata"] = data_accessor.numeric_obs_cols
@@ -120,7 +121,6 @@ def get_clusters_cluster_var_cells(cluster_variable):
 
 @bp.route("/Cells/Selections", methods=["GET"])
 def get_cells_selections():
-
     return jsonify(list(data_accessor.cells_selections))
 
 
@@ -200,7 +200,6 @@ def get_sigclusters_meta():
 
 @bp.route("/Clusters/<cluster_variable>/SigProjMatrix/Meta", methods=["GET"])
 def get_sigprojmatrix_meta(cluster_variable):
-
     sig_labels = adata.obs.columns.tolist()
     # TODO: amortize computation in metalevels route
     proj_labels = ["Score"] + list(
@@ -218,13 +217,13 @@ def get_sigprojmatrix_meta(cluster_variable):
     # TODO: test for categorical data with chi sq
     for p in proj_labels[1:]:
         temp_df = sc.get.rank_genes_groups_df(
-            obs_adata, key="rank_genes_groups_{}".format(cluster_variable), group=p
+            obs_adata, key=f"rank_genes_groups_{cluster_variable}", group=p
         )
         temp_df.set_index("names", inplace=True)
         sigs_by_projs_stats.loc[temp_df.index, p] = temp_df["scores"].copy()
         sigs_by_projs_pvals.loc[temp_df.index, p] = temp_df["pvals_adj"].copy()
         for cat_c in data_accessor.cat_obs_cols:
-            key = "chi_sq_{}_{}".format(cluster_variable, p)
+            key = f"chi_sq_{cluster_variable}_{p}"
             sigs_by_projs_stats.loc[cat_c, p] = obs_adata.uns[key]["stat"]
             sigs_by_projs_pvals.loc[cat_c, p] = obs_adata.uns[key]["pval"]
 
@@ -239,7 +238,6 @@ def get_sigprojmatrix_meta(cluster_variable):
 
 @bp.route("/Clusters/<cluster_variable>/SigProjMatrix/Normal", methods=["GET"])
 def get_sigprojmatrix_normal(cluster_variable):
-
     sig_labels = adata.obsm["vision_signatures"].columns.tolist()
     # TODO: amortize computation in metalevels route
     proj_labels = ["Score"] + list(
@@ -254,7 +252,7 @@ def get_sigprojmatrix_normal(cluster_variable):
     sig_adata = data_accessor.sig_adata
     for p in proj_labels[1:]:
         temp_df = sc.get.rank_genes_groups_df(
-            sig_adata, key="rank_genes_groups_{}".format(cluster_variable), group=p
+            sig_adata, key=f"rank_genes_groups_{cluster_variable}", group=p
         )
         temp_df.set_index("names", inplace=True)
         temp_df = temp_df.loc[sigs_by_projs_stats.index]
