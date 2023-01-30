@@ -64,7 +64,8 @@
 
 #plot-title-div .color-options label {
     padding: 0 6px;
-    display: flex; /* Needed so icons are centered vertically */
+    display: flex;
+    /* Needed so icons are centered vertically */
 }
 
 #plot-title-div .color-options .btn-group {
@@ -85,7 +86,8 @@
 
 .scatter-layout-container {
     flex-grow: 1;
-    overflow: hidden; /* so it shrinks even when plot is too big */
+    overflow: hidden;
+    /* so it shrinks even when plot is too big */
     display: flex;
     flex-direction: column;
 }
@@ -100,7 +102,8 @@
 }
 
 .scatter-split-plot-div {
-    display: flex; /* even though this isn't a flex container, fixes it's shrinking/growing */
+    display: flex;
+    /* even though this isn't a flex container, fixes it's shrinking/growing */
     flex-grow: 1;
     flex-shrink: 1;
     flex-basis: 0;

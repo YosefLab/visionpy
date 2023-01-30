@@ -9,18 +9,21 @@
 }
 
 #upper-left-content .nav-link {
-    padding: 0.5rem 0.5rem; /* Override to fit more nav items in */
+    padding: 0.5rem 0.5rem;
+    /* Override to fit more nav items in */
 }
 
 .upper-left-section-content {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* This prevents flex from growing to full size of children */
+    min-height: 0;
+    /* This prevents flex from growing to full size of children */
 }
 
 .tab-content.upper-left-section-content > .active {
-    display: flex; /* overrides bootstrap setting this to block */
+    display: flex;
+    /* overrides bootstrap setting this to block */
 }
 
 .upper-left-section-content > div {
@@ -31,11 +34,12 @@
 }
 
 .upper-left-section-content .sig-tables-header {
-    margin-right: 15px; /* Account for padding of div below it */
+    margin-right: 15px;
+    /* Account for padding of div below it */
     margin-bottom: 5px;
-    padding-top: 35px;
+    padding-top: 65px;
     overflow-x: hidden;
-    overflow-y: hidden;
+    overflow-y: scroll;
     flex-shrink: 0;
 }
 
@@ -196,7 +200,7 @@ table.collapsible.collapsed
 }
 
 #genes-table {
-    overflow-y: auto;
+    overflow-y: false;
 }
 
 #genes-table > div:first-child {
@@ -284,7 +288,8 @@ table.collapsible.collapsed
 }
 
 #de-table .collapsed-controls label {
-    margin-bottom: 0; /* undo bootstrap styling */
+    margin-bottom: 0;
+    /* undo bootstrap styling */
 }
 
 #de-table .collapsed-controls input[type="number"] {
@@ -302,11 +307,13 @@ table.collapsible.collapsed
 #de-table .collapsed-controls input::-webkit-outer-spin-button,
 #de-table .collapsed-controls input::-webkit-inner-spin-button {
     -webkit-appearance: none;
-    margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
+    margin: 0;
+    /* <-- Apparently some margin are still there even though it's hidden */
 }
 
 #de-table .collapsed-controls input[type="number"] {
-    -moz-appearance: textfield; /* Firefox */
+    -moz-appearance: textfield;
+    /* Firefox */
 }
 
 #de-table > #de-results {

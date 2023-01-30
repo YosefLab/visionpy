@@ -4,7 +4,8 @@
 html {
     height: 100%;
     width: 100%;
-    overflow: hidden; /* suppresses scrolllbar for off-screen hidden elements */
+    overflow: hidden;
+    /* suppresses scrolllbar for off-screen hidden elements */
 }
 
 /* 2.0 dpr */
@@ -77,8 +78,9 @@ body {
 }
 
 #left-content {
-    width: 500px;
+    width: 800px;
     display: flex;
+    overflow-y: auto;
     flex-direction: column;
 }
 
@@ -87,8 +89,12 @@ body {
     box-sizing: border-box;
 }
 
-#lower-left-content {
+#upper-middle-content {
     height: 50%;
+    box-sizing: border-box;
+}
+
+#lower-left-content {
     box-sizing: border-box;
     border-top: 1px solid #bbbbbb;
 }
@@ -197,11 +203,17 @@ div.vis-icon > svg {
 
 /* Prevents text from being selected */
 .no-select {
-    -webkit-touch-callout: none; /* iOS Safari */
-    -webkit-user-select: none; /* Safari */
-    -khtml-user-select: none; /* Konqueror HTML */
-    -moz-user-select: none; /* Old versions of Firefox */
-    -ms-user-select: none; /* Internet Explorer/Edge */
-    user-select: none; /* Non-prefixed version, currently
+    -webkit-touch-callout: none;
+    /* iOS Safari */
+    -webkit-user-select: none;
+    /* Safari */
+    -khtml-user-select: none;
+    /* Konqueror HTML */
+    -moz-user-select: none;
+    /* Old versions of Firefox */
+    -ms-user-select: none;
+    /* Internet Explorer/Edge */
+    user-select: none;
+    /* Non-prefixed version, currently
                                   supported by Chrome, Opera and Firefox */
 }

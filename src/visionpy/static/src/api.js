@@ -131,6 +131,14 @@ var api = (function () {
         return $.ajax(query, { dataType: "json" }).then((x) => x);
     };
 
+    output.clusters.modProjMatrix = function (cluster_variable) {
+        var query = "Clusters/";
+        query = query.concat(encodeURIComponent(cluster_variable));
+        query = query.concat("/ModProjMatrix/Normal");
+        query = postProcess(query);
+        return $.ajax(query, { dataType: "json" }).then((x) => x);
+    };
+
     output.clusters.proteinMatrix = function (cluster_variable) {
         var query = "Clusters/";
         query = query.concat(encodeURIComponent(cluster_variable));
@@ -161,7 +169,6 @@ var api = (function () {
         return $.ajax(query, { dataType: "json" }).then((x) => x);
     };
 
-    //Yanay
     output.de = function (
         type_n,
         subtype_n,
@@ -172,6 +179,7 @@ var api = (function () {
         min_cells,
         subsample_groups,
         subsample_N,
+        de_test_type,
     ) {
         var query = "DE";
 
@@ -188,6 +196,7 @@ var api = (function () {
                 min_cells: min_cells,
                 subsample_groups: subsample_groups,
                 subsample_N: subsample_N,
+                de_test_type: de_test_type,
             }),
             dataType: "json",
         }).then((x) => x);
@@ -360,6 +369,47 @@ var api = (function () {
 
     output.cells.listSelections = function () {
         var query = "Cells/Selections";
+        query = postProcess(query);
+        return $.ajax(query, { dataType: "json" }).then((x) => x);
+    };
+
+    // Modules Api
+    // the modules api uses existing signature api endpoints with only some specific extra ones
+    output.modules = {};
+
+    output.modules.lcs = function () {
+        var query = "Modules/LC";
+        query = postProcess(query);
+        return $.ajax(query, { dataType: "json" }).then((x) => x);
+    };
+
+    output.modules.enrichment = function (cluster_var) {
+        var query = "Modules/Enrichment";
+        query = query.concat(encodeURIComponent(cluster_var));
+        query = postProcess(query);
+        return $.ajax(query, { dataType: "json" }).then((x) => x);
+    };
+
+    output.modules.hotspot_score = function (mod_name) {
+        var query = "Modules/HotspotScore/";
+        query = query.concat(encodeURIComponent(mod_name));
+        query = postProcess(query);
+        return $.ajax(query, { dataType: "json" }).then((x) => {
+            return _.fromPairs(_.zip(x["cells"], x["values"]));
+        });
+    };
+
+    output.modules.mod_gene_list = function (mod_name) {
+        var query = "Modules/GeneList/";
+        query = query.concat(encodeURIComponent(mod_name));
+        query = postProcess(query);
+        return $.ajax(query, { dataType: "json" }).then((x) => x);
+    };
+
+    output.modules.clusters = function () {
+        var query;
+        query = "FilterGroup/SigClusters/Modules";
+
         query = postProcess(query);
         return $.ajax(query, { dataType: "json" }).then((x) => x);
     };

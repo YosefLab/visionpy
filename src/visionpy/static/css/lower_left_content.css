@@ -63,6 +63,7 @@
     flex-grow: 1;
     flex-shrink: 1;
 }
+
 #lower-left-content #sig-info-cluster > div:first-child {
     flex-grow: 0;
     flex-shrink: 0;
@@ -90,7 +91,8 @@
 }
 
 .checkbox-label label {
-    margin-bottom: 0; /* undo bootstrap styling */
+    margin-bottom: 0;
+    /* undo bootstrap styling */
 }
 
 /* Hack stuff for data-tables columns */
@@ -98,6 +100,7 @@
 #lower-left-content .dataTables_scrollHead .dataTables_scrollHeadInner {
     width: 100% !important;
 }
+
 #lower-left-content .dataTables_scrollHead table.dataTable {
     width: 100% !important;
 }

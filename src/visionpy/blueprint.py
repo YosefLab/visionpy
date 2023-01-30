@@ -97,6 +97,12 @@ def get_session_info():
     info["has_proteins"] = False
     # TODO: Fix
     info["has_lca"] = False
+    # TODO: implement hotspot
+    info["has_mods"] = False
+    # TODO: implement phylovision
+    info["has_dendrogram"] = False
+    # Do not change this
+    info["has_seurat"] = False
     return jsonify(info)
 
 
