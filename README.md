@@ -49,3 +49,5 @@ start_vision(
     name="Test Vision",
 )
 ```
+
+[link-docs]: https://visionpy.readthedocs.io
