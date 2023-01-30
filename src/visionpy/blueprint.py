@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from flask import Blueprint, jsonify, render_template, request
+from scipy.stats import entropy
 
 from visionpy import data_accessor
 
@@ -289,7 +290,7 @@ def send_cells_meta():
     categorical_stats = {}
     for c in categorical_df.columns:
         dist = (categorical_df[c].value_counts(normalize=True) * 100).to_dict()
-        categorical_stats[c] = dist
+        categorical_stats[c] = {"levels": dist, "entropy": entropy(list(dist.values()), base=2)}
 
     return_dict = dict(numeric=numerical_stats, factor=categorical_stats)
 
