@@ -15,7 +15,7 @@ from visionpy.api import start_vision
 .. autosummary::
     :toctree: generated
 
-    start_vision
+    api.start_vision
 ```
 
 ## Utilities

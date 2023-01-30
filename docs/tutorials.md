@@ -6,4 +6,5 @@
 :maxdepth: 1
 
 notebooks/vignette
+notebooks/signatures
 ```
