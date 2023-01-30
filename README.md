@@ -5,7 +5,7 @@
 [![Tests][badge-tests]][link-tests]
 [![Documentation][badge-docs]][link-docs]
 
-[badge-tests]: https://img.shields.io/github/actions/workflow/status/yoseflab/visionpy/test.yml?branch=main
+[badge-tests]: https://img.shields.io/github/actions/workflow/status/yoseflab/visionpy/test.yaml?branch=main
 [link-tests]: https://github.com/yoseflab/visionpy/actions/workflows/test.yml
 [badge-docs]: https://img.shields.io/readthedocs/visionpy
 
