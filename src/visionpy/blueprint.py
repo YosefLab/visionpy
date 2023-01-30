@@ -325,6 +325,10 @@ def send_de():
         cell_ids_2 = adata.get_cells_selection(subtype_d)
     elif type_d == "meta":
         cell_ids_2 = adata.obs[adata.obs[subtype_d] == group_denom].index.tolist()
+    elif type_d == "remainder":
+        cell_ids_2 = adata.obs.index.difference(cell_ids_1).tolist()
+    else:
+        raise ValueError("type_d not recognized")
 
     adata.obs["_vision_de_cache"] = "None"
     adata.obs.loc[cell_ids_1, "_vision_de_cache"] = "numerator"
@@ -338,6 +342,7 @@ def send_de():
         stat=de_res["scores"].tolist(),
         Feature=de_res["names"].tolist(),
         Type=["Gene"] * len(de_res),
+        de_test_type="wilcox",
     )
 
     return jsonify(send_de_res)
