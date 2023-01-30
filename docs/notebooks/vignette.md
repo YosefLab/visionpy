@@ -8,7 +8,7 @@ If you encounter errors in the installation, it is likely because a dependency i
 
 After a successful installation, you can proceed by loading visionpy using `import visionpy`.
 
-# Using visionpy
+## Using visionpy
 
 Running an analysis with visionpy consists of three steps:
 
@@ -16,7 +16,7 @@ Running an analysis with visionpy consists of three steps:
 2. Running the `analyze` function
 3. Browsing results
 
-## Creating the visionpy object
+### Creating the visionpy object
 
 Creating the visionpy object requires a gene expression matrix and _either_ a list of Gene Signatures or a data.frame of meta-data.
 
@@ -44,11 +44,11 @@ This input is optional if Signatures are provided.
 
 Other options and inputs can be provided to customize how visionpy runs. For information on this, see the "Customizing visionpy Analysis" section below.
 
-## Running an Analysis
+### Running an Analysis
 
 To run an analysis, simply call the analyze function:
 
-## Viewing Results
+### Viewing Results
 
 With the processed visionpy object, a dynamic web report can be generated with the `viewResults()` function.
 
@@ -58,11 +58,11 @@ Other options (port, host, browser) can be provided to control how this occurs. 
 
 Alternately, you can work with the visionpy object directly in R. For example:
 
-## Customizing the Latent Space
+### Customizing the Latent Space
 
 visionpy requires a latent space to model the similarity between cells (used to determine a cell's local neighborhood).
 
-## Adding 2d Projections
+### Adding 2d Projections
 
 Two-dimensional projections are used to visualize the data in the output report.
 
@@ -78,7 +78,7 @@ projection <- read.csv("umap_results.csv")
 vis <- addProjection(vis, "UMAP", projection)
 ```
 
-## Hotspot analysis
+### Hotspot analysis
 
 As of version 3.0.0, we have enabled users to perform de-novo gene module identification [Hotspot](<https://www.cell.com/cell-systems/fulltext/S2405-4712(21)00114-9>) (DeTomaso and Yosef, _Cell Systems_ 2021) from within visionpy.
 
