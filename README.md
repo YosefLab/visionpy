@@ -24,14 +24,6 @@ Python installed, we recommend installing [Miniconda](https://docs.conda.io/en/l
 
 There are several alternative options to install visionpy:
 
-<!--
-1) Install the latest release of `visionpy` from `PyPI <https://pypi.org/project/visionpy/>`_:
-
-```bash
-pip install visionpy
-```
--->
-
 1. Install the latest release on PyPI:
 
 ```bash
