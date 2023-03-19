@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning][].
 -   Scanpy lower bound
 -   Cookiecutter template update
 
+### Fixed
+
+-   Docs
+
 ## 0.0.1 (2023-01-30)
 
 ### Added
