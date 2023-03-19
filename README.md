@@ -56,8 +56,7 @@ start_vision(
     name="Test Session",
     norm_data_key="log1pcp10k",
     compute_neighbors_on_key="X_pca",
-    signture_varm_key="signatures",
-    name="Test Vision",
+    signature_varm_key="signatures",
 )
 ```
 
