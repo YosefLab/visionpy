@@ -130,3 +130,9 @@ dmypy.json
 
 .vscode/
 data/
+
+.mypy_cache/
+.ruff_cache/
+
+# Distribution / packaging
+/build/
