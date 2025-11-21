@@ -14,7 +14,6 @@ from anndata import AnnData
 from scanpy import _utils
 from scanpy import logging as logg
 from scanpy._utils import check_nonnegative_integers
-from scanpy.preprocessing._simple import _get_mean_var
 from scipy.sparse import issparse, vstack
 
 _Method = Optional[Literal["wilcoxon"]]
@@ -75,6 +74,20 @@ def _tiecorrect(ranks):
     cnt = np.diff(idx, axis=0).astype(np.float64)
 
     return 1.0 - (cnt**3 - cnt).sum(axis=0) / (size**3 - size)
+
+
+def _get_mean_var(X):
+
+    if issparse(X):
+        mean = np.array(X.mean(axis=0)).flatten()
+        mean_sq = np.array(X.multiply(X).mean(axis=0)).flatten()
+    else:
+        mean = X.mean(axis=0)
+        mean_sq = np.multiply(X, X).mean(axis=0)
+    
+    var = mean_sq - np.multiply(mean, mean)
+    
+    return mean, var
 
 
 class _RankGenes:
@@ -142,7 +155,7 @@ class _RankGenes:
         # for logreg only
         self.grouping_mask = adata.obs[groupby].isin(self.groups_order)
         self.grouping = adata.obs.loc[self.grouping_mask, groupby]
-
+    
     def _basic_stats(self):
         n_genes = self.X.shape[1]
         n_groups = self.groups_masks.shape[0]
@@ -187,7 +200,7 @@ class _RankGenes:
                     self.pts_rest[imask] = get_nonzeros(X_rest) / X_rest.shape[0]
                 # deleting the next line causes a memory leak for some reason
                 del X_rest
-
+    
     def wilcoxon(self, tie_correct):
         from scipy import stats
 
