@@ -125,7 +125,12 @@ class AnnDataAccessor:
 
     def get_genes_by_signature(self, sig_name: str) -> pd.DataFrame:
         """Df of genes in index, sign as values."""
-        index = np.where(np.asarray(self.adata.uns[self.signature_names_uns_key]) == sig_name)[0][0]
+        
+        if self.signature_names_uns_key is not None:
+            index = np.where(np.asarray(self.adata.uns[self.signature_names_uns_key]) == sig_name)[0][0]
+        else:
+            index = np.where(np.asarray(self.adata.obsm["vision_signatures"].columns) == sig_name)[0][0]
+        
         if self._norm_data_key == "use_raw":
             matrix = self.adata.raw.varm[self.signature_varm_key]
         else:
@@ -214,7 +219,12 @@ class AnnDataAccessor:
     # TODO: refactor this function
     def compute_gene_score_per_signature(self):
         gene_score_sig = {}
-        sig_names = self.adata.uns[self.signature_names_uns_key]
+                
+        if self.signature_names_uns_key is not None:
+            sig_names = self.adata.uns[self.signature_names_uns_key]
+        else:
+            sig_names = self.adata.obsm["vision_signatures"].columns
+        
         for s in sig_names:
             gene_score_sig[s] = {"genes": [], "values": []}
             df = self.get_genes_by_signature(s)
