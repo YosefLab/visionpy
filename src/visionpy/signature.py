@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from anndata import AnnData
 from scanpy.metrics._gearys_c import _gearys_c
-from scanpy.preprocessing._utils import _get_mean_var
+from .utils import _get_mean_var
 from scipy.sparse import csr_matrix, issparse
 from scipy.stats import chi2_contingency
 from sklearn.cluster import KMeans
