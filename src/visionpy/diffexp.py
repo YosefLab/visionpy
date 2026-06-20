@@ -101,7 +101,7 @@ class _RankGenes:
         layer=None,
         comp_pts=False,
     ):
-        if "log1p" in adata.uns_keys() and adata.uns["log1p"]["base"] is not None:
+        if "log1p" in adata.uns and adata.uns["log1p"]["base"] is not None:
             self.expm1_func = lambda x: np.expm1(x * np.log(adata.uns["log1p"]["base"]))
         else:
             self.expm1_func = np.expm1

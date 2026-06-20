@@ -279,11 +279,8 @@ def compute_obs_df_scores(adata):
     cols = adata.obs.columns.tolist()
     cat_cols = list(set(cols) - set(num_cols))
 
-    # aggregate results
-    res = pd.DataFrame(index=adata.obs.columns)
-    res["c_prime"] = 0
-    res["pvals"] = 0
-    res["fdr"] = 0
+    # aggregate results — float columns so pandas doesn't warn on partial assignment
+    res = pd.DataFrame(0.0, index=adata.obs.columns, columns=["c_prime", "pvals", "fdr"])
 
     weights = adata.obsp["weights"].tocsr()
 
@@ -918,36 +915,39 @@ def generate_permutations_null(adata, norm_data_key, signature_varm_key):
     # undo the log scaling
     centers["sig_size"] = round(10 ** centers["sig_size"])
 
-    random_sig_df = pd.DataFrame(index=exp_genes)
-
     num = 3000
+    gene_list = exp_genes.tolist()
+    n_genes = len(gene_list)
+    gene_to_idx = {g: i for i, g in enumerate(gene_list)}
+
     random_clusters = []
     new_sig_names = []
+    # Pre-allocate the full matrix to avoid per-column fragmentation
+    n_total = num * len(centers.index)
+    mat = np.zeros((n_genes, n_total), dtype=np.float32)
 
+    col_idx = 0
     for cluster_i in centers.index:
-
         size = centers.loc[cluster_i, "sig_size"]
         balance = centers.loc[cluster_i, "sig_balance"]
 
         for j in range(0, num):
-
-            new_sig_genes = random.sample(exp_genes.tolist(), int(min(size, len(exp_genes))))
+            new_sig_genes = random.sample(gene_list, int(min(size, n_genes)))
 
             up_genes = round(balance * size)
             remainder = (balance * size) % 1
             if np.random.uniform(low=0, high=1, size=1) < remainder:
                 up_genes = up_genes + 1
-            new_sig_signs = [1]*up_genes + [-1]*int(size - up_genes)
-            new_sig_name = "RANDOM_BG_" + str(cluster_i) + "_" + str(j)
-            new_sig_names.append(new_sig_name)
+            new_sig_signs = [1] * up_genes + [-1] * int(size - up_genes)
 
-            random_sig_df[new_sig_name] = 0
-            random_sig_df.loc[new_sig_genes, new_sig_name] = new_sig_signs
-
+            gene_idxs = [gene_to_idx[g] for g in new_sig_genes]
+            mat[gene_idxs, col_idx] = new_sig_signs
+            new_sig_names.append("RANDOM_BG_" + str(cluster_i) + "_" + str(j))
             random_clusters.append(cluster_i)
+            col_idx += 1
 
-    random_clusters = pd.Series(random_clusters)
-    random_clusters = random_clusters.astype('category')
-    random_clusters.index = new_sig_names
+    random_sig_df = pd.DataFrame(mat, index=exp_genes, columns=new_sig_names)
+
+    random_clusters = pd.Series(random_clusters, index=new_sig_names, dtype="category")
 
     return random_sig_df, clusters, random_clusters
