@@ -30,6 +30,19 @@ logger = logging.getLogger(__name__)
 _NUM_PERMUTATION_REPEATS = 20
 
 
+def _single_permutation(seed: int, X: np.ndarray, n_components: int) -> np.ndarray:
+    """One column-permutation replicate for apply_permutation_wpca.
+
+    Must be a module-level function so joblib loky can pickle it.
+    """
+    rng = np.random.default_rng(seed)
+    n_cells, n_genes = X.shape
+    perm_idx = np.argsort(rng.random((n_cells, n_genes)), axis=0)
+    X_perm = X[perm_idx, np.arange(n_genes)]
+    _, eval_perm, _ = apply_pca(X_perm, n_components)
+    return eval_perm
+
+
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
@@ -100,9 +113,9 @@ def apply_pca(
     identical expressions for the variance of the centered matrix.
     """
     if sparse.issparse(X):
-        X = X.toarray()
+        X = X.toarray().astype(np.float32)
     else:
-        X = np.asarray(X, dtype=float)
+        X = np.asarray(X, dtype=np.float32)
 
     n_cells, n_genes = X.shape
     n_components = min(max_components, n_cells - 1, n_genes - 1)
@@ -169,9 +182,9 @@ def apply_permutation_wpca(
     slice on ``gene_loadings``.
     """
     if sparse.issparse(X):
-        X = X.toarray()
+        X = X.toarray().astype(np.float32)
     else:
-        X = np.asarray(X, dtype=float)
+        X = np.asarray(X, dtype=np.float32)
 
     n_cells, n_genes = X.shape
     n_components = min(max_components, n_cells - 1, n_genes - 1)
@@ -180,21 +193,20 @@ def apply_permutation_wpca(
     pca_coords, eval_real, gene_loadings = apply_pca(X, n_components)
     n_components = len(eval_real)  # may be less than requested
 
-    # Build null distribution by permuting each gene independently
-    # In R: for each gene (row of genes×cells), shuffle its cell values.
-    # Here (cells×genes): each gene is a column; we permute each column
-    # by generating per-column random sort indices (vectorized, no Python loop).
+    # Build null distribution by permuting each gene independently, in parallel.
+    # Each replicate independently shuffles each gene (column) across cells.
     logger.info(
-        "Running %d permutation replicates for PC significance testing...",
+        "Running %d permutation replicates for PC significance testing (parallel)...",
         n_repeats,
     )
-    bg_vals = np.zeros((n_repeats, n_components))
-    for i in range(n_repeats):
-        # Independently shuffle each gene (column) across cells
-        perm_idx = np.argsort(np.random.rand(n_cells, n_genes), axis=0)
-        X_perm = X[perm_idx, np.arange(n_genes)]
-        _, eval_perm, _ = apply_pca(X_perm, n_components)
-        bg_vals[i] = eval_perm
+    from joblib import Parallel, delayed  # noqa: PLC0415 — lazy import
+
+    seeds = np.random.default_rng(0).integers(0, 2**31, size=n_repeats)
+    bg_vals = np.array(
+        Parallel(n_jobs=-1, backend="loky")(
+            delayed(_single_permutation)(int(s), X, n_components) for s in seeds
+        )
+    )
 
     mu_bg = bg_vals.mean(axis=0)
     sigma_bg = bg_vals.std(axis=0, ddof=1)
@@ -406,7 +418,7 @@ def apply_tsne(
     tsne = TSNE(
         n_components=2,
         perplexity=perplexity,
-        n_iter=n_iter,
+        max_iter=n_iter,
         init="random",       # pca=FALSE in R — skip internal PCA pre-step
         learning_rate="auto",
     )
@@ -615,8 +627,15 @@ def generate_projections(
                 X_raw = X_raw[:, gene_mask]
             X_log = log2p1(X_raw)
             if sparse.issparse(X_log):
+                n_dense_gb = X_log.shape[0] * X_log.shape[1] * 4 / 1e9
+                if n_dense_gb > 1.0:
+                    logger.warning(
+                        "ICA will densify a %.1f GB sparse matrix (%d cells × %d genes). "
+                        "Pass a smaller projection_genes list to reduce memory.",
+                        n_dense_gb, X_log.shape[0], X_log.shape[1],
+                    )
                 X_log = X_log.toarray()
-            coords = apply_ica(np.asarray(X_log, dtype=float))
+            coords = apply_ica(np.asarray(X_log, dtype=np.float32))
         else:
             continue  # should not happen given validation above
 

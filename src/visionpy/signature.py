@@ -1,3 +1,4 @@
+import logging
 import random
 from re import compile, match
 from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
@@ -7,13 +8,221 @@ import pandas as pd
 from anndata import AnnData
 from scanpy.metrics._gearys_c import _gearys_c
 from .utils import _get_mean_var
+from scipy import sparse
 from scipy.sparse import csr_matrix, issparse
 from scipy.stats import chi2_contingency
 from sklearn.cluster import KMeans
 from statsmodels.stats.multitest import multipletests
 
+logger = logging.getLogger(__name__)
+
 DOWN_SIG_KEY = "DN"
 UP_SIG_KEY = "UP"
+
+
+# ---------------------------------------------------------------------------
+# Sparse-preserving, GPU-accelerated signature scoring (batchSigEvalNorm)
+# ---------------------------------------------------------------------------
+
+def _resolve_torch_device(device: str) -> Optional[str]:
+    """Return a torch device string if a GPU path is available, else None.
+
+    ``"auto"`` selects CUDA if available, then MPS (Apple Silicon), then
+    falls back to ``None`` so the scipy path is used for pure-CPU runs.
+    """
+    try:
+        import torch
+    except ImportError:
+        return None
+
+    if device == "auto":
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+        return None  # no GPU → caller will use scipy path
+
+    return device  # honour explicit override ("cpu", "cuda", "cuda:1", "mps", …)
+
+
+def _sig_to_dense_f32(sig_matrix) -> np.ndarray:
+    """Convert any signature-matrix format to a dense float32 ndarray."""
+    if isinstance(sig_matrix, pd.DataFrame):
+        return sig_matrix.values.astype(np.float32)
+    if sparse.issparse(sig_matrix):
+        return sig_matrix.toarray().astype(np.float32)
+    return np.asarray(sig_matrix, dtype=np.float32)
+
+
+def _sig_to_scipy_csc(sig_matrix) -> "sparse.csc_matrix":
+    """Convert any signature-matrix format to scipy CSC float64."""
+    if isinstance(sig_matrix, pd.DataFrame):
+        return sparse.csc_matrix(sig_matrix.values)
+    if sparse.issparse(sig_matrix):
+        return sig_matrix.tocsc()
+    return sparse.csc_matrix(np.asarray(sig_matrix, dtype=float))
+
+
+def _batch_sig_eval_norm_scipy(norm_data, sig_matrix, batch_size: int) -> np.ndarray:
+    """Scipy sparse CPU implementation of ``batch_sig_eval_norm``."""
+    X = norm_data.data
+    X = X.tocsr() if sparse.issparse(X) else sparse.csr_matrix(X)
+
+    gof = norm_data.gene_offsets          # (n_genes,)
+    gsf = norm_data.gene_scale_factors    # (n_genes,)
+    cof = norm_data.cell_offsets          # (n_cells,)
+    csf = norm_data.cell_scale_factors    # (n_cells,)
+
+    S_all = _sig_to_scipy_csc(sig_matrix)  # (n_genes, n_sigs)
+    n_sigs = S_all.shape[1]
+    chunks = []
+
+    for start in range(0, n_sigs, batch_size):
+        S = S_all[:, start: start + batch_size]           # (n_genes, bs)
+
+        S_gsf = S.multiply(gsf[:, None])                  # (n_genes, bs), sparse
+        t1 = (X @ S_gsf).toarray()                         # (n_cells, bs), dense
+        t2 = np.asarray(S_gsf.multiply(gof[:, None]).sum(axis=0)).ravel()  # (bs,)
+        sig_sums = np.asarray(S.sum(axis=0)).ravel()      # (bs,)
+        t3 = np.outer(cof, sig_sums)                      # (n_cells, bs)
+
+        result = (t1 + t2[None, :] + t3) * csf[:, None]
+
+        denom = np.asarray(np.abs(S).sum(axis=0)).ravel()
+        denom = np.where(denom > 0, denom, 1.0)
+        chunks.append(result / denom[None, :])
+
+    return np.concatenate(chunks, axis=1)                  # (n_cells, n_sigs)
+
+
+def _batch_sig_eval_norm_torch(
+    norm_data, sig_matrix, device: str, batch_size: int
+) -> np.ndarray:
+    """PyTorch implementation of ``batch_sig_eval_norm`` (CUDA / MPS / CPU).
+
+    CUDA:  expression matrix held as sparse CSR on the GPU;
+           ``torch.sparse.mm`` drives the heavy sparse × dense multiply.
+    MPS:   sparse tensors are not supported by Metal — X is densified and
+           moved to the MPS device; use only when n_cells × n_genes fits
+           in GPU VRAM.
+    CPU:   falls through to the scipy path via the public dispatcher.
+    """
+    import torch
+
+    dev = torch.device(device)
+    use_cuda = dev.type == "cuda"
+    use_mps = dev.type == "mps"
+
+    # ── expression matrix ───────────────────────────────────────────────────
+    X = norm_data.data
+    if use_cuda:
+        # Sparse CSR is well-supported on CUDA
+        Xc = (X if sparse.issparse(X) else sparse.csr_matrix(X)).tocsr().astype(np.float32)
+        X_pt = torch.sparse_csr_tensor(
+            torch.from_numpy(Xc.indptr.copy().astype(np.int64)).to(dev),
+            torch.from_numpy(Xc.indices.copy().astype(np.int64)).to(dev),
+            torch.from_numpy(Xc.data.copy()).to(dev),
+            size=tuple(Xc.shape),
+        )
+    else:
+        # MPS / CPU: use a plain dense tensor
+        X_dense = (X.toarray() if sparse.issparse(X) else np.asarray(X)).astype(np.float32)
+        X_pt = torch.as_tensor(X_dense, device=dev)
+
+    # ── normalisation parameters ────────────────────────────────────────────
+    gof = torch.as_tensor(norm_data.gene_offsets.astype(np.float32), device=dev)
+    gsf = torch.as_tensor(norm_data.gene_scale_factors.astype(np.float32), device=dev)
+    cof = torch.as_tensor(norm_data.cell_offsets.astype(np.float32), device=dev)
+    csf = torch.as_tensor(norm_data.cell_scale_factors.astype(np.float32), device=dev)
+
+    # ── signature matrix as dense float32 on device ─────────────────────────
+    # Signature matrices are typically small (n_genes × n_sigs) even when n_sigs
+    # is large; dense is fine here; batching caps peak memory per iteration.
+    S_full = torch.as_tensor(_sig_to_dense_f32(sig_matrix), device=dev)  # (n_genes, n_sigs)
+    n_sigs = S_full.shape[1]
+
+    chunks = []
+    for start in range(0, n_sigs, batch_size):
+        S = S_full[:, start: start + batch_size]           # (n_genes, bs)
+        S_gsf = S * gsf.unsqueeze(1)                       # (n_genes, bs)
+
+        # T1: (n_cells, n_genes) × (n_genes, bs) → (n_cells, bs)
+        if use_cuda:
+            t1 = torch.sparse.mm(X_pt, S_gsf)
+        else:
+            t1 = X_pt @ S_gsf
+
+        # T2: per-sig constant broadcast over cells
+        t2 = (S_gsf * gof.unsqueeze(1)).sum(dim=0)        # (bs,)
+        # T3: per-(cell, sig) outer product
+        t3 = torch.outer(cof, S.sum(dim=0))               # (n_cells, bs)
+
+        result = (t1 + t2.unsqueeze(0) + t3) * csf.unsqueeze(1)
+        denom = S.abs().sum(dim=0).clamp(min=1e-10)
+        chunks.append((result / denom.unsqueeze(0)).cpu())
+
+    return torch.cat(chunks, dim=1).numpy()                # (n_cells, n_sigs)
+
+
+def batch_sig_eval_norm(
+    norm_data,
+    sig_matrix: Union[np.ndarray, "sparse.spmatrix", pd.DataFrame],
+    device: str = "auto",
+    batch_size: int = 1200,
+) -> np.ndarray:
+    """Evaluate signature scores via NormData without materialising the dense expression matrix.
+
+    Mirrors R VISION's ``batchSigEvalNorm`` / ``innerEvalSignatureBatchNorm``.
+    The lazy NormData normalisation is expanded analytically into three
+    sparse-computable terms, so the full n_cells × n_genes matrix is never
+    formed in memory::
+
+        Z[c, g] = ((X[c,g] + gof[g]) * gsf[g] + cof[c]) * csf[c]
+        score(s,c) = Σ_g sig[g,s] · Z[c,g]  /  Σ_g |sig[g,s]|
+
+    Expansion (no dense n_cells × n_genes intermediate)::
+
+        T1 = X @ (S * gsf)               sparse × dense
+        T2 = Σ_g sig[g,s]*gsf[g]*gof[g]  per-sig scalar, broadcast
+        T3 = cof ⊗ Σ_g sig[g,s]          outer product
+        result = (T1 + T2 + T3) * csf[:,None] / denom
+
+    Parameters
+    ----------
+    norm_data : NormData
+        Lazy normalisation container produced by
+        :func:`~visionpy.normalization.get_normalized_copy_sparse`.
+    sig_matrix : array-like of shape (n_genes, n_sigs)
+        Signature weight matrix (+1 up, −1 down, 0 absent).
+    device : str, optional
+        Compute device.  ``"auto"`` (default) selects CUDA when available,
+        then MPS (Apple Silicon), then falls back to scipy on CPU.  Pass
+        ``"cuda"``, ``"cuda:1"``, ``"mps"``, or ``"cpu"`` to override.
+    batch_size : int, optional
+        Signatures per batch (bounds peak GPU/RAM usage), by default 1200.
+
+    Returns
+    -------
+    ndarray of shape (n_cells, n_sigs)
+        Per-cell signature scores.
+
+    Notes
+    -----
+    On MPS the expression matrix is densified before transfer to GPU.  For
+    very large datasets (> 100 k cells × 30 k genes) prefer ``"cuda"`` or
+    the default scipy path.
+    """
+    torch_device = _resolve_torch_device(device)
+
+    if torch_device is not None:
+        try:
+            return _batch_sig_eval_norm_torch(norm_data, sig_matrix, torch_device, batch_size)
+        except Exception as exc:
+            logger.warning(
+                "PyTorch path failed (%s); falling back to scipy sparse.", exc
+            )
+
+    return _batch_sig_eval_norm_scipy(norm_data, sig_matrix, batch_size)
 
 
 # def compute_obs_df_scores(adata):
@@ -76,10 +285,10 @@ def compute_obs_df_scores(adata):
     res["pvals"] = 0
     res["fdr"] = 0
 
+    weights = adata.obsp["weights"].tocsr()
+
     # first handle numerical data with geary's
     if len(num_cols) > 0:
-        weights = adata.obsp["weights"]
-        weights = weights.tocsr()
         gearys_c = _gearys_c(weights, numerical_df.to_numpy().transpose())
         c_prime = 1-gearys_c
         pvals_num = compute_num_var_pvals(c_prime, weights, numerical_df)
@@ -143,6 +352,7 @@ def compute_signature_scores(adata, norm_data_key, signature_varm_key):
         )
 
     del adata.varm["random_signatures"]
+    adata.obsm["vision_signatures"] = df  # restore real scores overwritten by random run
 
     random_gearys_c = _gearys_c(weights, random_df.to_numpy().transpose())
     random_c_prime = 1-random_gearys_c
@@ -561,66 +771,98 @@ def compute_signatures_anndata(
     norm_data_key: Union[Literal["use_raw"], str],
     signature_varm_key: str,
     signature_names_uns_key: Optional[str] = None,
-) -> None:
-    """Compute signatures for each cell.
+    sig_norm_method: str = "znorm_columns",
+    device: str = "auto",
+    batch_size: int = 1200,
+) -> pd.DataFrame:
+    """Compute per-cell signature scores.
+
+    For sparse expression matrices the computation is performed entirely
+    without densifying the n_cells × n_genes matrix.  A
+    :class:`~visionpy.normalization.NormData` object is built from the
+    expression data and :func:`batch_sig_eval_norm` is called, selecting
+    CUDA → MPS → scipy automatically.
+
+    For dense inputs the existing VISION z-score formula is retained.
 
     Parameters
     ----------
     adata
-        AnnData object to compute signatures for.
+        AnnData object.
     norm_data_key
-        Key for adata.layers to use for signature computation. If "use_raw", use adata.raw.X.
+        Key in ``adata.layers`` for the expression matrix, or ``"use_raw"``
+        to read from ``adata.raw.X``.  Pass ``None`` to use ``adata.X``.
     signature_varm_key
-        Key in `adata.varm` for signatures. If `None` (default), no signatures. Matrix
-        should encode positive genes with 1, negative genes with -1, and all other genes with 0
+        Key in ``adata.varm`` for the (n_genes × n_sigs) signature weight
+        matrix (+1 up-regulated, −1 down-regulated, 0 absent).
     signature_names_uns_key
-        Key in `adata.uns` for signature names. If `None`, attempts to read columns if `signature_varm_key`
-        is a pandas DataFrame. Otherwise, uses `Signature_1`, `Signature_2`, etc.
-
+        Key in ``adata.uns`` for column names.  When ``None``, column names
+        are read from the DataFrame index (if applicable) or auto-generated.
+    sig_norm_method : str, optional
+        Normalisation method passed to
+        :func:`~visionpy.normalization.get_normalized_copy_sparse` for the
+        sparse path.  Matches R VISION's ``sig_norm_method`` parameter;
+        default ``"znorm_columns"`` (z-normalise each cell across genes).
+    device : str, optional
+        Compute device for :func:`batch_sig_eval_norm`; ``"auto"`` by default.
+    batch_size : int, optional
+        Signatures processed per batch, by default 1200.
     """
-    start = time.time()
-    print("Computing signatures for each cell...")
-    
-    adata.uns['norm_data_key'] = norm_data_key
-    adata.uns['signature_varm_key'] = signature_varm_key
+    from .normalization import get_normalized_copy_sparse
 
-    use_raw_for_signatures = norm_data_key == "use_raw"
+    t0 = time.time()
+    logger.info("Computing signatures for each cell...")
+
+    adata.uns["norm_data_key"] = norm_data_key
+    adata.uns["signature_varm_key"] = signature_varm_key
+
+    use_raw = norm_data_key == "use_raw"
     if norm_data_key is None:
         gene_expr = adata.X
-    elif norm_data_key == "use_raw":
+    elif use_raw:
         gene_expr = adata.raw.X
     else:
         gene_expr = adata.layers[norm_data_key]
-    sig_matrix = adata.varm[signature_varm_key] if not use_raw_for_signatures else adata.raw.varm[signature_varm_key]
+
+    sig_mat_raw = adata.varm[signature_varm_key] if not use_raw else adata.raw.varm[signature_varm_key]
     if signature_names_uns_key is not None:
         cols = adata.uns[signature_names_uns_key]
-    elif isinstance(sig_matrix, pd.DataFrame):
-        cols = sig_matrix.columns
+    elif isinstance(sig_mat_raw, pd.DataFrame):
+        cols = sig_mat_raw.columns.tolist()
     else:
-        cols = [f"signature_{i}" for i in range(sig_matrix.shape[1])]
-    if not issparse(sig_matrix):
-        if isinstance(sig_matrix, pd.DataFrame):
-            sig_matrix = sig_matrix.to_numpy()
-        sig_matrix = csr_matrix(sig_matrix)
-    is_sparse = issparse(gene_expr)
-    # gene_expr = gene_expr.A if is_sparse else gene_expr
-    gene_expr = gene_expr.toarray() if is_sparse else gene_expr
-    cell_signature_matrix = gene_expr @ sig_matrix
-    # cell_signature_matrix = (gene_expr @ sig_matrix).toarray()
-    sig_df = pd.DataFrame(data=cell_signature_matrix, columns=cols, index=adata.obs_names)
-    # normalize
-    mean, var = _get_mean_var(gene_expr, axis=1)
-    n = np.asarray((sig_matrix > 0).sum(0))
-    m = np.asarray((sig_matrix < 0).sum(0))
-    sig_df = sig_df / (n + m)
-    # cells by signatures
-    sig_mean = np.outer(mean, ((n - m) / (n + m)))
-    # cells by signatures
-    sig_std = np.sqrt(np.outer(var, 1 / (n + m)))
-    sig_df = (sig_df - sig_mean) / sig_std
+        cols = [f"signature_{i}" for i in range(sig_mat_raw.shape[1])]
 
-    print("Finished computing signatures for each cell in %.3f seconds" %(time.time()-start))
+    if issparse(gene_expr):
+        # ── sparse path: NormData + GPU-accelerated batch scoring ──────────
+        norm_data = get_normalized_copy_sparse(gene_expr, method=sig_norm_method)
+        scores = batch_sig_eval_norm(
+            norm_data, sig_mat_raw, device=device, batch_size=batch_size
+        )
+        sig_df = pd.DataFrame(data=scores, columns=cols, index=adata.obs_names)
+    else:
+        # ── dense path: existing VISION z-score formula ─────────────────────
+        gene_expr = np.asarray(gene_expr, dtype=float)
+        sig_matrix = csr_matrix(
+            sig_mat_raw.to_numpy() if isinstance(sig_mat_raw, pd.DataFrame)
+            else (sig_mat_raw.toarray() if issparse(sig_mat_raw) else sig_mat_raw)
+        )
+        # Avoid densifying: sparse @ sparse → small dense (n_cells × n_sigs)
+        cell_signature_matrix = (gene_expr @ sig_matrix).toarray() \
+            if issparse(gene_expr @ sig_matrix) \
+            else gene_expr @ sig_matrix
+        sig_df = pd.DataFrame(data=cell_signature_matrix, columns=cols, index=adata.obs_names)
+        mean, var = _get_mean_var(gene_expr, axis=1)
+        n = np.asarray((sig_matrix > 0).sum(0))
+        m = np.asarray((sig_matrix < 0).sum(0))
+        denom = (n + m)
+        sig_df = sig_df / np.where(denom > 0, denom, 1.0)
+        sig_mean = np.outer(mean, np.where(denom > 0, (n - m) / denom, 0.0))
+        sig_std = np.sqrt(np.outer(var, np.where(denom > 0, 1.0 / denom, 1.0)))
+        sig_std[sig_std == 0] = 1.0
+        sig_df = (sig_df - sig_mean) / sig_std
 
+    adata.obsm["vision_signatures"] = sig_df
+    logger.info("Signatures computed in %.3f s.", time.time() - t0)
     return sig_df
 
 
@@ -630,6 +872,8 @@ def generate_permutations_null(adata, norm_data_key, signature_varm_key):
     exp_genes = adata.raw.var.index if use_raw else adata.var_names
 
     sig_matrix = adata.varm[signature_varm_key] if not use_raw else adata.raw.varm[signature_varm_key]
+    if not isinstance(sig_matrix, pd.DataFrame):
+        sig_matrix = pd.DataFrame(sig_matrix)
 
     sig_size = sig_matrix.apply(lambda x: (x!=0).sum(), axis=0)
 

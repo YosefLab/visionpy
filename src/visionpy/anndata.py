@@ -7,10 +7,22 @@ import pandas as pd
 import scanpy as sc
 import scipy
 from scipy.sparse import issparse
-from scipy.stats import chisquare, pearsonr
+from scipy.stats import chisquare
 
 from .diffexp import rank_genes_groups
 from .signature import compute_obs_df_scores, compute_signature_scores
+
+
+def _pearson_cols(A: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Pearson correlation between each column of A (n×p) and vector b (n,)."""
+    A = A - A.mean(axis=0)        # (n, p) centered
+    b = b - b.mean()              # (n,)  centered
+    denom_A = np.sqrt((A ** 2).sum(axis=0))   # (p,)
+    denom_b = float(np.sqrt((b ** 2).sum()))
+    denom_A[denom_A == 0] = 1.0
+    if denom_b == 0:
+        return np.zeros(A.shape[1])
+    return (b @ A) / (denom_b * denom_A)      # (p,)
 
 
 class AnnDataAccessor:
@@ -152,7 +164,9 @@ class AnnDataAccessor:
         self.adata.uns["vision_obs_df_scores"] = compute_obs_df_scores(self.adata)
 
     def compute_signature_scores(self):
-        self.adata.uns["vision_signature_scores"] = compute_signature_scores(self.adata)
+        self.adata.uns["vision_signature_scores"] = compute_signature_scores(
+            self.adata, self.norm_data_key, self.signature_varm_key
+        )
 
     def compute_one_vs_all_signatures(self):
         sig_adata = anndata.AnnData(self.adata.obsm["vision_signatures"])
@@ -167,17 +181,22 @@ class AnnDataAccessor:
         self.sig_adata = sig_adata
 
     def compute_one_vs_all_obs_cols(self):
-        # log for scanpy de
-        obs_adata = anndata.AnnData(np.log1p(self.adata.obs._get_numeric_data().copy()))
+        numeric_data = self.adata.obs._get_numeric_data().copy()
+        n_numeric = numeric_data.shape[1]
+        # AnnData requires ≥1 variable; use a zeros placeholder when there are
+        # no numeric metadata columns so categorical chi-squared still runs.
+        obs_X = np.log1p(numeric_data.to_numpy()) if n_numeric > 0 else np.zeros((self.adata.n_obs, 1))
+        obs_adata = anndata.AnnData(obs_X)
         obs_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
         for c in self.cat_obs_cols:
             try:
-                rank_genes_groups(
-                    obs_adata,
-                    groupby=c,
-                    key_added=f"rank_genes_groups_{c}",
-                    method="wilcoxon",
-                )
+                if n_numeric > 0:
+                    rank_genes_groups(
+                        obs_adata,
+                        groupby=c,
+                        key_added=f"rank_genes_groups_{c}",
+                        method="wilcoxon",
+                    )
             # one category only has one obs
             except ValueError:
                 # TODO: Log it
@@ -235,12 +254,11 @@ class AnnDataAccessor:
             sign = df.to_numpy().ravel()
             gene_score_sig[s]["signs"] = sign.tolist()
 
-            # TODO: Make faster
-            for i, (g, sign_) in enumerate(zip(gene_names, sign)):
-                gene_score_sig[s]["values"].append(
-                    sign_ * pearsonr(expr[:, i], self.adata.obsm["vision_signatures"][s])[0]
-                )
-                gene_score_sig[s]["genes"].append(g)
+            # Vectorized: correlate all signature genes at once
+            sig_scores = self.adata.obsm["vision_signatures"][s].to_numpy().ravel()
+            corrs = _pearson_cols(expr, sig_scores)   # (n_genes,)
+            gene_score_sig[s]["values"] = (sign * corrs).tolist()
+            gene_score_sig[s]["genes"] = gene_names.tolist()
 
         for s in sig_names:
             info = gene_score_sig[s]

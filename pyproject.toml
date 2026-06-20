@@ -25,11 +25,18 @@ dependencies = [
     "click",
     "flask",
     "flask-compress",
+    "joblib",
     "leidenalg",
+    "python-igraph",
     "rich",
+    "scikit-learn",
+    "scipy",
 ]
 
 [project.optional-dependencies]
+gpu = [
+    "pynndescent",
+]
 dev = [
     # CLI for bumping the version number
     "bump2version",

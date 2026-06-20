@@ -33,9 +33,14 @@ def find_knn(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Find K nearest neighbors for every point in *data*.
 
+    Uses ``pynndescent`` (approximate, O(n log n)) when available, falling
+    back to sklearn's exact ``NearestNeighbors``.  For datasets with more
+    than ~50 k cells, pynndescent is typically 10–100× faster.
+
     Self-distances are excluded from the result (mirrors R VISION's
     ``find_knn_parallel``, which queries K+1 neighbors and drops the first
-    column).
+    column).  pynndescent never returns the query point itself, so no
+    trimming is needed on that path.
 
     Parameters
     ----------
@@ -51,11 +56,18 @@ def find_knn(
     distances : ndarray of shape (n_cells, K)
         Euclidean distances to each of the K nearest neighbors.
     """
-    # Query K+1 so we can drop the self-hit at position 0
+    try:
+        from pynndescent import NNDescent
+        # pynndescent never includes the query point itself in the results
+        index = NNDescent(data, n_neighbors=K, random_state=0, verbose=False)
+        indices, distances = index.neighbor_graph
+        return indices.astype(np.intp), distances.astype(np.float64)
+    except ImportError:
+        pass
+
+    # sklearn fallback: query K+1, drop the self-hit at column 0
     nbrs = NearestNeighbors(n_neighbors=K + 1, algorithm="auto").fit(data)
     distances, indices = nbrs.kneighbors(data)
-
-    # Column 0 is the point itself (distance 0); drop it
     return indices[:, 1:], distances[:, 1:]
 
 

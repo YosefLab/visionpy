@@ -79,12 +79,11 @@ def _louvain_cluster(data: np.ndarray, K: int = 30) -> List[List[int]]:
 
     W = np.exp(-(d ** 2) / (sigma ** 2))           # (n_cells, K_eff)
 
-    # Build directed edge list (one directed edge per KNN connection)
-    edges, weights = [], []
-    for i in range(n_cells):
-        for k, j in enumerate(idx[i]):
-            edges.append((i, int(j)))
-            weights.append(float(W[i, k]))
+    # Build directed edge list via vectorized index math (avoids Python loops)
+    src = np.repeat(np.arange(n_cells), K_eff)   # (n_cells * K_eff,)
+    dst = idx.ravel()                              # (n_cells * K_eff,)
+    edges = np.column_stack([src, dst]).tolist()   # igraph accepts list of [i, j]
+    weights = W.ravel().tolist()
 
     g = igraph.Graph(n=n_cells, edges=edges, directed=True)
     g.es["weight"] = weights
@@ -193,9 +192,9 @@ def _internal_pca(
         X_sub = X_log
 
     if sparse.issparse(X_sub):
-        X_sub = X_sub.toarray()
+        X_sub = X_sub.toarray().astype(np.float32)
     else:
-        X_sub = np.asarray(X_sub, dtype=float)
+        X_sub = np.asarray(X_sub, dtype=np.float32)
 
     n_cells, n_genes = X_sub.shape
     k = min(ncomp, n_cells - 1, n_genes - 1)
@@ -328,13 +327,14 @@ def pool_matrix(
     pool_ids = list(pools.keys())
     n_pools = len(pool_ids)
 
-    rows, cols, sizes = [], [], []
-    for j, pid in enumerate(pool_ids):
-        cell_names = pools[pid]
-        for name in cell_names:
-            rows.append(obs_index[name])
-            cols.append(j)
-        sizes.append(len(cell_names))
+    # Build indicator matrix indices via vectorized array ops (avoids inner loop)
+    sizes = np.array([len(pools[pid]) for pid in pool_ids], dtype=np.intp)
+    cell_idx_lists = [
+        np.fromiter((obs_index[n] for n in pools[pid]), dtype=np.intp, count=sz)
+        for pid, sz in zip(pool_ids, sizes)
+    ]
+    rows = np.concatenate(cell_idx_lists)
+    cols = np.repeat(np.arange(n_pools, dtype=np.intp), sizes)
 
     # n_cells × n_pools binary indicator
     pool_mat = csr_matrix(

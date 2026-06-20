@@ -25,7 +25,7 @@ from .projections import (
     generate_projections,
     log2p1,
 )
-from .signature import compute_signatures_anndata, signatures_from_gmt
+from .signature import batch_sig_eval_norm, compute_signatures_anndata, signatures_from_file
 
 __version__ = version("visionpy-sc")
 
