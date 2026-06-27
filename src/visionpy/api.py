@@ -447,6 +447,110 @@ def _start_vision_cli(
 # Post-construction helpers
 # ---------------------------------------------------------------------------
 
+def add_trajectory(
+    adata: anndata.AnnData,
+    milestone_network: pd.DataFrame,
+    progressions: pd.DataFrame,
+    K: Optional[int] = None,
+) -> None:
+    """Add a dynverse-format trajectory and compute trajectory autocorrelation.
+
+    After calling this function the VISION UI will show a **Tree** tab with
+    milestone-graph projections and per-signature trajectory autocorrelation.
+
+    Parameters
+    ----------
+    adata
+        AnnData already prepared by :func:`start_vision`.
+    milestone_network
+        DataFrame with columns ``from``, ``to``, ``length`` describing the
+        milestone graph edges.
+    progressions
+        DataFrame indexed by cell_id (or with a ``cell_id`` column) with
+        columns ``from``, ``to``, ``position`` (fraction ∈ [0, 1] along the
+        from→to edge).
+    K
+        Number of trajectory nearest neighbours for the Geary's C weight
+        graph.  Defaults to ``round(sqrt(n_cells))``.
+    """
+    from .trajectory import (
+        _build_adj_matrix,
+        calculate_trajectory_distances,
+        compute_trajectory_knn_weights,
+        create_trajectory_metadata,
+        generate_trajectory_projections,
+    )
+    from .signature import _gearysc_for_dataframe
+
+    # Normalise progressions index
+    if "cell_id" in progressions.columns:
+        progressions = progressions.set_index("cell_id")
+
+    # Align progressions to adata cell order (inner join)
+    common = progressions.index.intersection(adata.obs_names)
+    if len(common) < len(progressions):
+        import warnings
+        warnings.warn(
+            f"{len(progressions) - len(common)} cells in progressions not found in "
+            "adata — they will be dropped.",
+            stacklevel=2,
+        )
+    progressions = progressions.loc[common]
+
+    adj, milestone_ids = _build_adj_matrix(milestone_network)
+
+    # Geodesic distances → KNN weights
+    dist_mat = calculate_trajectory_distances(progressions, adj, milestone_ids)
+    traj_weights = compute_trajectory_knn_weights(dist_mat, K=K)
+    adata.obsp["trajectory_weights"] = traj_weights
+
+    # 2-D projections
+    adata.uns["vision_trajectory_projections"] = generate_trajectory_projections(
+        progressions, adj, milestone_ids
+    )
+
+    # Trajectory metadata → adata.obs
+    traj_meta = create_trajectory_metadata(progressions, adj, milestone_ids)
+    for col in traj_meta.columns:
+        adata.obs[col] = np.nan
+        adata.obs.loc[traj_meta.index, col] = traj_meta[col]
+
+    # Autocorrelation (same Geary's C but with trajectory weights)
+    traj_autocorr: dict = {}
+
+    if "vision_signatures" in adata.obsm:
+        sig_df = adata.obsm["vision_signatures"].loc[common]
+        traj_autocorr["Signatures"] = _gearysc_for_dataframe(
+            traj_weights, sig_df, compute_pvals=True
+        )
+
+    # All obs metadata (numeric + categorical handled inside _gearysc_for_dataframe)
+    numeric_obs = adata.obs.loc[common]._get_numeric_data()
+    if numeric_obs.shape[1] > 0:
+        traj_autocorr["Meta"] = _gearysc_for_dataframe(
+            traj_weights, numeric_obs, compute_pvals=True
+        )
+
+    # Protein (CITE-seq), no permutation p-values — matching R VISION
+    prot_key = adata.uns.get("vision_protein_differential_key")
+    if prot_key and prot_key in adata.obsm:
+        mat = adata.obsm[prot_key]
+        prot_names = adata.uns.get("vision_protein_autocorr", pd.DataFrame()).index.tolist()
+        if isinstance(mat, pd.DataFrame):
+            protein_df = mat.loc[common]
+        else:
+            protein_df = pd.DataFrame(
+                np.asarray(mat)[adata.obs_names.get_indexer(common)],
+                index=common,
+                columns=prot_names or [f"Protein_{i}" for i in range(mat.shape[1])],
+            )
+        traj_autocorr["Proteins"] = _gearysc_for_dataframe(
+            traj_weights, protein_df, compute_pvals=False
+        )
+
+    adata.uns["vision_trajectory_autocorr"] = traj_autocorr
+
+
 def add_projection(
     adata: anndata.AnnData,
     name: str,
