@@ -7,10 +7,14 @@ import pandas as pd
 import scanpy as sc
 import scipy
 from scipy.sparse import issparse
-from scipy.stats import chisquare
+from scipy.stats import chi2_contingency
 
 from .diffexp import rank_genes_groups
-from .signature import compute_obs_df_scores, compute_signature_scores
+from .signature import (
+    compute_obs_df_scores,
+    compute_signature_scores,
+    _gearysc_for_dataframe,
+)
 
 
 def _pearson_cols(A: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -54,6 +58,7 @@ class AnnDataAccessor:
         self._signature_varm_key = signature_varm_key
         self._signature_names_uns_key = signature_names_uns_key
         self._cells_selections = {}
+        self.protein_adata = None
 
     @property
     def adata(self):
@@ -135,6 +140,25 @@ class AnnDataAccessor:
         else:
             return data
 
+    def get_gene_expression_raw(self, gene: str) -> list:
+        """Return unnormalized (raw count) expression for *gene*.
+
+        Uses the layer stored in ``adata.uns["vision_unnormalized_key"]`` when
+        available, otherwise falls back to ``adata.raw.X`` or ``adata.X``.
+        """
+        if self.adata is None:
+            raise ValueError("Accessor not populated with anndata.")
+        unnorm_key = self.adata.uns.get("vision_unnormalized_key")
+        if unnorm_key is not None and unnorm_key in self.adata.layers:
+            data = self.adata[:, gene].layers[unnorm_key]
+        elif self.adata.raw is not None:
+            data = self.adata.raw[:, gene].X
+        else:
+            data = self.adata[:, gene].X
+        if scipy.sparse.issparse(data):
+            data = data.toarray()
+        return data.ravel().tolist()
+
     def get_genes_by_signature(self, sig_name: str) -> pd.DataFrame:
         """Df of genes in index, sign as values."""
         
@@ -162,6 +186,70 @@ class AnnDataAccessor:
 
     def compute_obs_df_scores(self):
         self.adata.uns["vision_obs_df_scores"] = compute_obs_df_scores(self.adata)
+
+    def compute_protein_autocorrelation(self):
+        """Geary's C for CITE-seq protein data.
+
+        Mirrors R VISION's ``fbConsistencyScores``: rank-transforms protein
+        columns and computes Geary's C using the cell KNN weight graph.
+        No permutation p-values (matching R VISION's ``computePval=FALSE``).
+        Results stored in ``adata.uns["vision_protein_autocorr"]``.
+        """
+        if self._protein_obsm_key is None:
+            return
+        mat = self.adata.obsm[self._protein_obsm_key]
+        if isinstance(mat, pd.DataFrame):
+            protein_df = mat
+        else:
+            n_prot = mat.shape[1]
+            cols = (
+                [f"Protein_{i}" for i in range(n_prot)]
+                if not hasattr(mat, "columns")
+                else mat.columns.tolist()
+            )
+            protein_df = pd.DataFrame(
+                np.asarray(mat, dtype=float),
+                index=self.adata.obs_names,
+                columns=cols,
+            )
+        weights = self.adata.obsp["weights"].tocsr()
+        result = _gearysc_for_dataframe(weights, protein_df, compute_pvals=False)
+        self.adata.uns["vision_protein_autocorr"] = result
+
+    def compute_protein_differential(self):
+        """One-vs-all Wilcoxon differential for proteins across cluster levels.
+
+        Mirrors the signature differential pipeline applied to protein expression.
+        Results stored in ``adata.uns["vision_protein_differential"]``.
+        """
+        if self._protein_obsm_key is None:
+            return
+        mat = self.adata.obsm[self._protein_obsm_key]
+        if isinstance(mat, pd.DataFrame):
+            prot_arr = mat.to_numpy()
+            prot_names = mat.columns.tolist()
+        else:
+            prot_arr = np.asarray(mat, dtype=float)
+            prot_names = [f"Protein_{i}" for i in range(prot_arr.shape[1])]
+
+        prot_adata = anndata.AnnData(
+            prot_arr,
+            obs=self.adata.obs.loc[:, self.cat_obs_cols].copy(),
+        )
+        prot_adata.var_names = prot_names
+
+        for c in self.cat_obs_cols:
+            try:
+                rank_genes_groups(
+                    prot_adata,
+                    groupby=c,
+                    key_added=f"rank_genes_groups_{c}",
+                    method="wilcoxon",
+                )
+            except ValueError:
+                continue
+        self.protein_adata = prot_adata
+        self.adata.uns["vision_protein_differential_key"] = self._protein_obsm_key
 
     def compute_signature_scores(self):
         self.adata.uns["vision_signature_scores"] = compute_signature_scores(
@@ -215,19 +303,20 @@ class AnnDataAccessor:
                     grand_total = np.sum(freqs.to_numpy())
                     r = len(freqs) - 1
                     try:
-                        stat, pval = chisquare(
-                            freqs.iloc[:, 0].to_numpy().ravel(),
-                            freqs.iloc[:, 1].to_numpy().ravel(),
-                        )
+                        # freqs shape: (n_categories, 2) — rows=categories, cols=pos/neg group
+                        chi2, pval, _, _ = chi2_contingency(freqs.to_numpy())
+                        stat = chi2
                     except ValueError:
-                        stat = grand_total * r  # so that v is 1
+                        stat = grand_total  # so that v is 1
                         pval = 0
                     if math.isinf(pval) or math.isnan(pval):
                         pval = 1
                     if math.isinf(stat) or math.isnan(stat):
                         v = 1
                     else:
-                        v = np.sqrt(stat / (grand_total * r))
+                        # Cramér's V for a 2-column table: V = sqrt(chi2 / n)
+                        # min(k-1, r-1) = min(2-1, r-1) = 1 for r ≥ 2
+                        v = np.sqrt(stat / grand_total)
                     obs_adata.uns[f"chi_sq_{j}_{g}"] = {
                         "stat": v,
                         "pval": pval,
@@ -235,7 +324,6 @@ class AnnDataAccessor:
 
         self.obs_adata = obs_adata
 
-    # TODO: refactor this function
     def compute_gene_score_per_signature(self):
         gene_score_sig = {}
                 
@@ -266,6 +354,113 @@ class AnnDataAccessor:
             gene_score_sig[s]["sigDict"] = {g: v for g, v in zip(info["genes"], info["signs"])}
 
         self.gene_score_sig = gene_score_sig
+
+    def persist_signature_differential(self):
+        """Persist one-vs-all Wilcoxon signature results to adata.uns.
+
+        Writes ``adata.uns["vision_signature_differential"]`` as a dict keyed
+        by the groupby column name.  Each value is a tidy DataFrame with columns
+        ``["group", "names", "scores", "pvals", "pvals_adj", "logfoldchanges"]``
+        where "names" are signature names.  Mirrors R VISION's
+        ``@ClusterComparisons$Signatures``.
+        """
+        if not hasattr(self, "sig_adata"):
+            return
+        result = {}
+        for c in self.cat_obs_cols:
+            key = f"rank_genes_groups_{c}"
+            if key not in self.sig_adata.uns:
+                continue
+            groups = list(self.sig_adata.obs[c].astype("category").cat.categories)
+            frames = []
+            for g in groups:
+                try:
+                    df = sc.get.rank_genes_groups_df(self.sig_adata, group=str(g), key=key)
+                    df.insert(0, "group", str(g))
+                    frames.append(df)
+                except Exception:
+                    continue
+            if frames:
+                result[c] = pd.concat(frames, ignore_index=True)
+        if result:
+            self.adata.uns["vision_signature_differential"] = result
+
+    def persist_meta_differential(self):
+        """Persist one-vs-all metadata differential results to adata.uns.
+
+        Writes ``adata.uns["vision_meta_differential"]`` as a nested dict:
+        ``{groupby_col: {"numeric": DataFrame, "categorical": DataFrame}}``.
+
+        * ``numeric`` — Wilcoxon test for each numeric obs column grouped by
+          the categorical variable.  Columns: ``["group", "names", "scores",
+          "pvals", "pvals_adj", "logfoldchanges"]``.
+        * ``categorical`` — Cramér's V between each pair of categorical obs
+          columns.  Columns: ``["group", "names", "cramers_v", "pval"]``.
+
+        Mirrors R VISION's ``@ClusterComparisons$Meta``.
+        """
+        if not hasattr(self, "obs_adata"):
+            return
+        result = {}
+        for c in self.cat_obs_cols:
+            col_result = {}
+            groups = list(self.obs_adata.obs[c].astype("category").cat.categories)
+
+            # ── Numeric metadata (Wilcoxon) ───────────────────────────────────
+            key = f"rank_genes_groups_{c}"
+            if key in self.obs_adata.uns and self.obs_adata.n_vars > 0:
+                frames = []
+                for g in groups:
+                    try:
+                        df = sc.get.rank_genes_groups_df(
+                            self.obs_adata, group=str(g), key=key
+                        )
+                        df.insert(0, "group", str(g))
+                        frames.append(df)
+                    except Exception:
+                        continue
+                if frames:
+                    col_result["numeric"] = pd.concat(frames, ignore_index=True)
+
+            # ── Categorical pairs (Cramér's V) ────────────────────────────────
+            cat_rows = []
+            for g in groups:
+                for j in self.cat_obs_cols:
+                    chi_key = f"chi_sq_{j}_{g}"
+                    if chi_key in self.obs_adata.uns:
+                        info = self.obs_adata.uns[chi_key]
+                        cat_rows.append(
+                            {"group": str(g), "names": str(j),
+                             "cramers_v": info["stat"], "pval": info["pval"]}
+                        )
+            if cat_rows:
+                col_result["categorical"] = pd.DataFrame(cat_rows)
+
+            if col_result:
+                result[c] = col_result
+        if result:
+            self.adata.uns["vision_meta_differential"] = result
+
+    def persist_gene_importance(self):
+        """Persist per-signature gene importance scores to adata.uns.
+
+        Writes ``adata.uns["vision_gene_importance"]`` as a dict keyed by
+        signature name.  Each value is a DataFrame indexed by gene name with
+        columns ``["importance", "sign"]`` where
+        ``importance = sign × Pearson(gene_expr, sig_score)``.
+        Mirrors R VISION's ``@SigGeneImportance``.
+        """
+        if not hasattr(self, "gene_score_sig") or not self.gene_score_sig:
+            return
+        result = {}
+        for sig_name, info in self.gene_score_sig.items():
+            if info["genes"]:
+                result[sig_name] = pd.DataFrame(
+                    {"importance": info["values"], "sign": info["signs"]},
+                    index=info["genes"],
+                )
+        if result:
+            self.adata.uns["vision_gene_importance"] = result
 
     def compute_one_vs_one_de(self, key: str, group1: str, group2: str):
         rank_genes_groups(

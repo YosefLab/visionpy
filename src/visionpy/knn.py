@@ -30,17 +30,9 @@ logger = logging.getLogger(__name__)
 def find_knn(
     data: np.ndarray,
     K: int,
+    exact: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Find K nearest neighbors for every point in *data*.
-
-    Uses ``pynndescent`` (approximate, O(n log n)) when available, falling
-    back to sklearn's exact ``NearestNeighbors``.  For datasets with more
-    than ~50 k cells, pynndescent is typically 10–100× faster.
-
-    Self-distances are excluded from the result (mirrors R VISION's
-    ``find_knn_parallel``, which queries K+1 neighbors and drops the first
-    column).  pynndescent never returns the query point itself, so no
-    trimming is needed on that path.
 
     Parameters
     ----------
@@ -48,6 +40,12 @@ def find_knn(
         Coordinates in the latent space.
     K : int
         Number of neighbors to return per cell.
+    exact : bool, optional
+        If ``True``, use sklearn's exact brute-force / kd-tree search
+        (matches R VISION's RANN output exactly, slower for large datasets).
+        If ``False`` (default), use ``pynndescent`` when available for an
+        approximate O(n log n) search, falling back to sklearn if the package
+        is not installed.
 
     Returns
     -------
@@ -56,16 +54,17 @@ def find_knn(
     distances : ndarray of shape (n_cells, K)
         Euclidean distances to each of the K nearest neighbors.
     """
-    try:
-        from pynndescent import NNDescent
-        # pynndescent never includes the query point itself in the results
-        index = NNDescent(data, n_neighbors=K, random_state=0, verbose=False)
-        indices, distances = index.neighbor_graph
-        return indices.astype(np.intp), distances.astype(np.float64)
-    except ImportError:
-        pass
+    if not exact:
+        try:
+            from pynndescent import NNDescent
+            # pynndescent never includes the query point itself in the results
+            index = NNDescent(data, n_neighbors=K, random_state=0, verbose=False)
+            indices, distances = index.neighbor_graph
+            return indices.astype(np.intp), distances.astype(np.float64)
+        except ImportError:
+            pass
 
-    # sklearn fallback: query K+1, drop the self-hit at column 0
+    # Exact sklearn search: query K+1, drop the self-hit at column 0
     nbrs = NearestNeighbors(n_neighbors=K + 1, algorithm="auto").fit(data)
     distances, indices = nbrs.kneighbors(data)
     return indices[:, 1:], distances[:, 1:]
@@ -78,6 +77,7 @@ def find_knn(
 def compute_knn_weights(
     latent_space: np.ndarray,
     K: Optional[int] = None,
+    exact: bool = False,
 ) -> csr_matrix:
     """Build an exponential-kernel KNN weight matrix from a latent space.
 
@@ -118,7 +118,7 @@ def compute_knn_weights(
 
     logger.info("Building KNN graph: n_cells=%d, K=%d.", n_cells, K)
 
-    idx, d = find_knn(latent_space, K)  # both (n_cells, K)
+    idx, d = find_knn(latent_space, K, exact=exact)  # both (n_cells, K)
 
     # Per-cell bandwidth σ_i = distance to the K-th (farthest) neighbor
     sigma = d.max(axis=1, keepdims=True)   # (n_cells, 1)
@@ -151,6 +151,7 @@ def compute_knn_weights_anndata(
     obsm_key: str = "X_pca",
     K: Optional[int] = None,
     obsp_key: str = "weights",
+    exact: bool = False,
 ) -> AnnData:
     """Compute VISION exponential KNN weights and store in ``adata.obsp``.
 
@@ -191,7 +192,7 @@ def compute_knn_weights_anndata(
         )
 
     latent_space = np.asarray(adata.obsm[obsm_key], dtype=float)
-    weights = compute_knn_weights(latent_space, K=K)
+    weights = compute_knn_weights(latent_space, K=K, exact=exact)
     adata.obsp[obsp_key] = weights
 
     logger.info(

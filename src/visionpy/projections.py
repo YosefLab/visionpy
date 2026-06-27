@@ -383,7 +383,58 @@ def compute_latent_space(
 # 2D visualisation projections
 # ---------------------------------------------------------------------------
 
-_ALL_PROJECTION_METHODS = ("tSNE30", "tSNE10", "UMAP", "ISOMap", "ICA")
+def apply_rbfpca(
+    X: np.ndarray,
+    n_components: int = 2,
+    sigma: float = 0.33,
+) -> np.ndarray:
+    """RBF-kernel PCA 2D projection.
+
+    Mirrors R VISION's ``applyRBFPCA``.  Builds a log-distance Gaussian kernel
+    matrix K from pairwise Euclidean distances, row-normalises and z-scores each
+    row, then returns the projection onto the top ``n_components`` eigenvectors
+    of ``K @ K.T``.
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_cells, n_dims)
+        Input coordinates (latent space).
+    n_components : int, optional
+        Number of components to retain, by default 2.
+    sigma : float, optional
+        RBF bandwidth (applied to log-distances), by default 0.33 (matches R).
+
+    Returns
+    -------
+    ndarray of shape (n_cells, n_components)
+    """
+    from sklearn.metrics import pairwise_distances
+    from sklearn.utils.extmath import randomized_svd
+
+    D = pairwise_distances(X)       # (n_cells, n_cells) Euclidean
+    # avoid log(0) on the diagonal (will be zeroed later)
+    np.fill_diagonal(D, 1.0)
+    np.log(D, out=D)                # log-distance
+    D **= 2                         # squared log-distance (point_mult in R)
+    K = np.exp(-D / sigma ** 2)     # RBF kernel
+    np.fill_diagonal(K, 0.0)       # zero diagonal (matches R)
+
+    row_sums = K.sum(axis=1)
+    row_sums[row_sums == 0] = 1.0
+    K /= row_sums[:, np.newaxis]    # row-normalise
+
+    # Z-score each row (matches R's as.matrix(kMat, 1, function(x) (x-mean(x))/sd(x)))
+    K -= K.mean(axis=1, keepdims=True)
+    stds = K.std(axis=1, keepdims=True)
+    stds[stds == 0] = 1.0
+    K /= stds
+
+    W = K @ K.T                     # covariance (tcrossprod in R)
+    U, _, _ = randomized_svd(W, n_components=n_components, random_state=0)
+    return K @ U                    # project (crossprod(t(kMat), evec) in R)
+
+
+_ALL_PROJECTION_METHODS = ("tSNE30", "tSNE10", "UMAP", "ISOMap", "ICA", "RBFPCA")
 
 
 def apply_tsne(
@@ -550,10 +601,10 @@ def generate_projections(
     - ``"ICA"`` — filtered log-transformed expression (cells × genes), not
       the latent space, to match R VISION's behaviour.
     - ``"UMAP"`` — scanpy neighbour graph built on ``adata.obsm[obsm_key]``.
-    - ``"tSNE30"``, ``"tSNE10"``, ``"ISOMap"`` — ``adata.obsm[obsm_key]``.
+    - ``"tSNE30"``, ``"tSNE10"``, ``"ISOMap"``, ``"RBFPCA"`` — ``adata.obsm[obsm_key]``.
 
     Results are stored in ``adata.obsm[f"X_{{method}}"]``
-    (e.g. ``"X_tSNE30"``, ``"X_UMAP"``).
+    (e.g. ``"X_tSNE30"``, ``"X_UMAP"``, ``"X_RBFPCA"``).
 
     Parameters
     ----------
@@ -562,8 +613,8 @@ def generate_projections(
         (produced by :func:`compute_latent_space`).
     projection_methods : sequence of str, optional
         Ordered list of projection names.  Choose from
-        ``"tSNE30"``, ``"tSNE10"``, ``"UMAP"``, ``"ISOMap"``, ``"ICA"``.
-        Default: all five methods.
+        ``"tSNE30"``, ``"tSNE10"``, ``"UMAP"``, ``"ISOMap"``, ``"ICA"``,
+        ``"RBFPCA"``.  Default: all six methods.
     obsm_key : str, optional
         Key in ``adata.obsm`` for the latent-space coordinates used by
         UMAP, tSNE, and ISOMap, by default ``"X_pca"``.
@@ -619,6 +670,8 @@ def generate_projections(
             coords = apply_umap(adata, obsm_key=obsm_key, K=K)
         elif method == "ISOMap":
             coords = apply_isomap(latent, K=K)
+        elif method == "RBFPCA":
+            coords = apply_rbfpca(latent)
         elif method == "ICA":
             # ICA runs on raw log-transformed expression, not the latent space
             X_raw = adata.X
