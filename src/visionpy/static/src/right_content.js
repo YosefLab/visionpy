@@ -612,15 +612,25 @@ Right_Content.prototype.update = function (updates) {
         update_promise = $.Deferred().resolve().promise();
     }
 
-    return update_promise.then(function () {
+    var result = $.Deferred();
+    update_promise.then(function () {
         // Update all visible plots if they need it
         var visiblePlotData = self.getVisiblePlotData();
         for (i = 0; i < visiblePlotData.length; i++) {
             if (visiblePlotData[i]["needsUpdate"]) {
-                self.draw_scatter(visiblePlotData[i], autoZoom);
+                try {
+                    self.draw_scatter(visiblePlotData[i], autoZoom);
+                } catch (e) {
+                    console.error("draw_scatter error:", e);
+                }
             }
         }
+        result.resolve();
+    }).fail(function (err) {
+        console.error("projection fetch failed:", err);
+        result.reject(err);
     });
+    return result.promise();
 };
 
 Right_Content.prototype.select_default_proj = function () {
@@ -720,7 +730,7 @@ Right_Content.prototype.draw_sigvp = function (plotData, autoZoom) {
     }
 
     var points = [];
-    var sample_labels = Object.keys(values).sort();
+    var sample_labels = Object.keys(values || {}).sort();
     var selected_cells = get_global_status("selected_cell");
     var selected_cells_map = _.keyBy(selected_cells, (x) => x);
     if (selected_cells.length == 1) {
@@ -729,8 +739,11 @@ Right_Content.prototype.draw_sigvp = function (plotData, autoZoom) {
     }
 
     _.each(sample_labels, (sample_label) => {
-        var x = projection[sample_label][0];
-        var y = projection[sample_label][1];
+        var coords = projection[sample_label];
+        if (!coords) return;
+        var x = coords[0];
+        var y = coords[1];
+        if (x === null || x === undefined || y === null || y === undefined) return;
         var sig_score = values[sample_label];
         var selected = sample_label in selected_cells_map;
 

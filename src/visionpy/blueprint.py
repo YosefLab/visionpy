@@ -42,12 +42,15 @@ def app():
 def get_projection_list():
     """Returns dict of col names for each projection."""
     proj_dict = OrderedDict()
-    # get only numeric columns
-    proj_dict["Obs_metadata"] = data_accessor.numeric_obs_cols
+    # X_ obsm projections first so scatter defaults to spatial/reduced coords
     for k in adata.obsm_keys():
         if k[:2] == "X_":
             name = k.split("_")[1]
             proj_dict[k] = [name.upper() + f"{i + 1}" for i in range(adata.obsm[k].shape[1])]
+    # Obs_metadata: only numeric columns without NaN (trajectory position cols have NaN)
+    valid_cols = [c for c in data_accessor.numeric_obs_cols if not adata.obs[c].isna().any()]
+    if valid_cols:
+        proj_dict["Obs_metadata"] = valid_cols
 
     return jsonify(proj_dict)
 
@@ -55,25 +58,21 @@ def get_projection_list():
 @bp.route("/Projections/<proj_name>/coordinates/<proj_col>", methods=["GET"])
 def get_projection_column(proj_name, proj_col):
     if proj_name == "Obs_metadata":
-        data = adata.obs[proj_col].values.tolist()
+        col = adata.obs[proj_col]
+        # Replace NaN with None so json serializes to null (NaN is not valid JSON)
+        data = [None if pd.isna(v) else v for v in col.tolist()]
     else:
         name_prefix = proj_name.split("_", 1)[1].upper()
         column_ind = int(proj_col[len(name_prefix):]) - 1
-        data = adata.obsm[proj_name]
-        if isinstance(data, pd.DataFrame):
-            data = data.iloc[:, column_ind].values.tolist()
+        arr = adata.obsm[proj_name]
+        if isinstance(arr, pd.DataFrame):
+            data = arr.iloc[:, column_ind].values.tolist()
         else:
-            data = data[:, column_ind].tolist()
+            data = arr[:, column_ind].tolist()
 
-    # the order matters here
-    df = pd.DataFrame()
-    df["Coords"] = data
-    df["Barcodes"] = adata.obs_names.tolist()
-
-    # need a list of lists, where each internal list is a coord value
-    # and then a barcode value
-    # coord value needs to be float, barcode str
-    return jsonify(df.to_numpy().tolist())
+    # Build [[coord, barcode], ...] without going through a mixed-type DataFrame
+    barcodes = adata.obs_names.tolist()
+    return jsonify([[c, b] for c, b in zip(data, barcodes)])
 
 
 @bp.route("/Tree/Projections/list", methods=["GET"])
@@ -330,24 +329,29 @@ def get_sigclusters_meta():
 
 @bp.route("/Clusters/<cluster_variable>/SigProjMatrix/Meta", methods=["GET"])
 def get_sigprojmatrix_meta(cluster_variable):
-    sig_labels = adata.obs.columns.tolist()
+    meta_autocorr = adata.uns["vision_obs_df_scores"]
+    sig_labels = meta_autocorr.index.tolist()
     # TODO: amortize computation in metalevels route
     proj_labels = ["Score"] + list(adata.obs[cluster_variable].astype("category").cat.categories)
 
-    scores = adata.uns["vision_obs_df_scores"]["c_prime"].to_numpy().reshape(-1, 1)
-    sigs_by_projs_stats = pd.DataFrame(index=sig_labels, columns=proj_labels[1:], data=0)
-    sigs_by_projs_pvals = pd.DataFrame(index=sig_labels, columns=proj_labels[1:], data=0)
+    scores = meta_autocorr["c_prime"].to_numpy().reshape(-1, 1)
+    sigs_by_projs_stats = pd.DataFrame(index=sig_labels, columns=proj_labels[1:], data=0.0)
+    sigs_by_projs_pvals = pd.DataFrame(index=sig_labels, columns=proj_labels[1:], data=1.0)
     obs_adata = data_accessor.obs_adata
     # TODO: test for categorical data with chi sq
     for p in proj_labels[1:]:
-        temp_df = sc.get.rank_genes_groups_df(obs_adata, key=f"rank_genes_groups_{cluster_variable}", group=p)
+        temp_df = sc.get.rank_genes_groups_df(obs_adata, key=f"rank_genes_groups_{cluster_variable}", group=str(p))
         temp_df.set_index("names", inplace=True)
-        sigs_by_projs_stats.loc[temp_df.index, p] = temp_df["scores"].copy()
-        sigs_by_projs_pvals.loc[temp_df.index, p] = temp_df["pvals_adj"].copy()
+        common = temp_df.index.intersection(sigs_by_projs_stats.index)
+        sigs_by_projs_stats.loc[common, p] = temp_df.loc[common, "scores"].values
+        sigs_by_projs_pvals.loc[common, p] = temp_df.loc[common, "pvals_adj"].values
         for cat_c in data_accessor.cat_obs_cols:
+            if cat_c not in sig_labels:
+                continue
             key = f"chi_sq_{cluster_variable}_{p}"
-            sigs_by_projs_stats.loc[cat_c, p] = obs_adata.uns[key]["stat"]
-            sigs_by_projs_pvals.loc[cat_c, p] = obs_adata.uns[key]["pval"]
+            if key in obs_adata.uns:
+                sigs_by_projs_stats.loc[cat_c, p] = obs_adata.uns[key]["stat"]
+                sigs_by_projs_pvals.loc[cat_c, p] = obs_adata.uns[key]["pval"]
 
     stats = np.hstack([scores, sigs_by_projs_stats.to_numpy()]).tolist()
     pvals = np.hstack([np.zeros_like(scores), sigs_by_projs_pvals.to_numpy()]).tolist()

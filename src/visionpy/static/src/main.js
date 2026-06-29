@@ -166,21 +166,30 @@ function set_global_status(update) {
     }
 
     $.when.apply($, right_content_promises).then(function () {
-        right_content.update(update).then(() => {
-            right_content.setLoadingStatus(false);
-        });
+        right_content.update(update)
+            .then(() => { right_content.setLoadingStatus(false); })
+            .fail((err) => {
+                console.error("right_content update failed:", err);
+                right_content.setLoadingStatus(false);
+            });
     });
 
     $.when.apply($, lower_left_content_promises).then(function () {
-        lower_left_content.update(update).then(() => {
-            lower_left_content.setLoadingStatus(false);
-        });
+        lower_left_content.update(update)
+            .then(() => { lower_left_content.setLoadingStatus(false); })
+            .fail((err) => {
+                console.error("lower_left_content update failed:", err);
+                lower_left_content.setLoadingStatus(false);
+            });
     });
 
     $.when.apply($, upper_left_content_promises).then(function () {
-        upper_left_content.update(update).then(() => {
-            upper_left_content.setLoadingStatus(false);
-        });
+        upper_left_content.update(update)
+            .then(() => { upper_left_content.setLoadingStatus(false); })
+            .fail((err) => {
+                console.error("upper_left_content update failed:", err);
+                upper_left_content.setLoadingStatus(false);
+            });
     });
 }
 
@@ -219,9 +228,9 @@ window.onload = function () {
         }
 
         if (info.has_tree) {
-            $("#nav-bar")
-                .find(".nav-link[data-main-vis='tree']")
-                .removeClass("disabled");
+            var treeLink = $("#nav-bar").find(".nav-link[data-main-vis='tree']");
+            treeLink.closest(".nav-item").show();
+            treeLink.removeClass("disabled");
         }
 
         if (info.has_mods) {

@@ -1,3 +1,4 @@
+import os
 from typing import Literal, List, Optional, Sequence, Union
 
 import anndata
@@ -9,7 +10,11 @@ from statsmodels.stats.multitest import multipletests
 
 from visionpy import create_app, data_accessor
 
-from .knn import compute_knn_weights_anndata
+from .knn import (
+    compute_knn_weights_anndata,
+    compute_knn_weights_from_tree_anndata,
+    compute_knn_weights_from_tree_lca_anndata,
+)
 from .microclusters import apply_micro_clustering
 from .projections import _ALL_PROJECTION_METHODS, compute_latent_space, generate_projections
 from .signature import compute_signatures_anndata, split_signed_signatures
@@ -174,6 +179,9 @@ def _prepare_vision(
     name: str,
     norm_data_key: Optional[Union[Literal["use_raw"], str]] = None,
     compute_neighbors_on_key: Optional[str] = None,
+    tree: Optional[str] = None,
+    lca_knn: bool = False,
+    lca_min_size: int = 20,
     signature_varm_key: Optional[str] = None,
     signature_names_uns_key: Optional[str] = None,
     protein_obsm_key: Optional[str] = None,
@@ -211,7 +219,20 @@ def _prepare_vision(
     #    Geary's C in signature.py reads this key.
     # ------------------------------------------------------------------
     _neighbors_key = None
-    if compute_neighbors_on_key is not None:
+    if tree is not None:
+        # PhyloVision mode: KNN weights from tree structure
+        newick_str = tree
+        if os.path.isfile(tree):
+            with open(tree) as _f:
+                newick_str = _f.read().strip()
+        if lca_knn:
+            compute_knn_weights_from_tree_lca_anndata(
+                adata, newick_str, min_size=lca_min_size
+            )
+        else:
+            compute_knn_weights_from_tree_anndata(adata, newick_str, K=num_neighbors)
+        adata.uns["vision_tree"] = newick_str
+    elif compute_neighbors_on_key is not None:
         compute_knn_weights_anndata(adata, obsm_key=compute_neighbors_on_key, K=num_neighbors, exact=exact_knn)
         _neighbors_key = compute_neighbors_on_key
     elif "X_pca" in adata.obsm:
@@ -229,8 +250,10 @@ def _prepare_vision(
 
     # ------------------------------------------------------------------
     # 2b. Louvain clustering on a fresh K=min(K,30) KNN → VISION_Clusters
+    #     Skipped in PhyloVision mode unless a coordinate obsm key is available.
     # ------------------------------------------------------------------
-    _cluster_cells(adata, obsm_key=_neighbors_key, num_neighbors=num_neighbors, exact_knn=exact_knn)
+    if _neighbors_key is not None:
+        _cluster_cells(adata, obsm_key=_neighbors_key, num_neighbors=num_neighbors, exact_knn=exact_knn)
 
     # ------------------------------------------------------------------
     # 3. Optional micro-clustering ("auto" pools when n_obs > 100 000)
@@ -300,6 +323,9 @@ def start_vision(
     name: str,
     norm_data_key: Optional[Union[Literal["use_raw"], str]] = None,
     compute_neighbors_on_key: Optional[str] = None,
+    tree: Optional[str] = None,
+    lca_knn: bool = False,
+    lca_min_size: int = 20,
     signature_varm_key: Optional[str] = None,
     signature_names_uns_key: Optional[str] = None,
     protein_obsm_key: Optional[str] = None,
@@ -372,28 +398,42 @@ def start_vision(
     batch_size
         Number of signatures processed per GPU batch.  Default 1200.
     """
-    _prepare_vision(
-        adata=adata,
-        name=name,
-        norm_data_key=norm_data_key,
-        compute_neighbors_on_key=compute_neighbors_on_key,
-        signature_varm_key=signature_varm_key,
-        signature_names_uns_key=signature_names_uns_key,
-        run_pca=run_pca,
-        pca_max_components=pca_max_components,
-        use_permutation_wpca=use_permutation_wpca,
-        run_projections=run_projections,
-        projection_methods=projection_methods,
-        num_neighbors=num_neighbors,
-        run_micro_clustering=run_micro_clustering,
-        cells_per_partition=cells_per_partition,
-        device=device,
-        batch_size=batch_size,
-        protein_obsm_key=protein_obsm_key,
-        unnormalized_layer_key=unnormalized_layer_key,
-    )
+    if isinstance(adata, str):
+        adata = anndata.read_h5ad(adata)
+
+    if "vision_session_name" in adata.uns:
+        # Already prepared — just wire the data accessor and launch.
+        data_accessor.adata = adata
+        data_accessor.norm_data_key = adata.uns.get("norm_data_key", norm_data_key)
+        data_accessor.signature_varm_key = adata.uns.get("signature_varm_key", signature_varm_key)
+        data_accessor.signature_names_uns_key = signature_names_uns_key
+        data_accessor.protein_obsm_key = protein_obsm_key
+    else:
+        _prepare_vision(
+            adata=adata,
+            name=name,
+            norm_data_key=norm_data_key,
+            compute_neighbors_on_key=compute_neighbors_on_key,
+            tree=tree,
+            lca_knn=lca_knn,
+            lca_min_size=lca_min_size,
+            signature_varm_key=signature_varm_key,
+            signature_names_uns_key=signature_names_uns_key,
+            run_pca=run_pca,
+            pca_max_components=pca_max_components,
+            use_permutation_wpca=use_permutation_wpca,
+            run_projections=run_projections,
+            projection_methods=projection_methods,
+            num_neighbors=num_neighbors,
+            run_micro_clustering=run_micro_clustering,
+            cells_per_partition=cells_per_partition,
+            device=device,
+            batch_size=batch_size,
+            protein_obsm_key=protein_obsm_key,
+            unnormalized_layer_key=unnormalized_layer_key,
+        )
     app = create_app()
-    app.run(threaded=False, processes=1, debug=debug, port=port)
+    app.run(host="0.0.0.0", threaded=True, processes=1, debug=debug, port=port)
 
 
 @click.command()

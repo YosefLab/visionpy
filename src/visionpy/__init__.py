@@ -11,7 +11,16 @@ from rich.logging import RichHandler
 
 from .anndata import AnnDataAccessor
 from .filters import apply_filters, filter_genes_fano, filter_genes_novar, filter_genes_threshold
-from .knn import compute_knn_weights, compute_knn_weights_anndata, find_knn
+from .knn import (
+    compute_knn_weights,
+    compute_knn_weights_anndata,
+    compute_knn_weights_from_tree,
+    compute_knn_weights_from_tree_anndata,
+    compute_knn_weights_from_tree_lca,
+    compute_knn_weights_from_tree_lca_anndata,
+    find_knn,
+)
+from .phylo import compute_plasticity_scores
 from .microclusters import apply_micro_clustering, pool_matrix, pool_matrix_anndata, pool_metadata, pool_metadata_anndata
 from .normalization import NormData, get_normalized_copy, get_normalized_copy_sparse
 from .projections import (

@@ -13,7 +13,7 @@ connectivities that visionpy previously used as a proxy.
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 from anndata import AnnData
@@ -143,7 +143,302 @@ def compute_knn_weights(
 
 
 # ---------------------------------------------------------------------------
-# AnnData wrapper
+# Tree-based KNN (PhyloVision)
+# ---------------------------------------------------------------------------
+
+def _cophenetic_distance_matrix(newick_str: str) -> Tuple[List[str], np.ndarray]:
+    """Compute pairwise cophenetic (patristic) distances from a Newick tree.
+
+    Uses a single DFS that fills each pair exactly once at their LCA,
+    giving O(n²) time and space — faster than calling tree.distance(a, b)
+    for every pair.
+
+    Missing branch lengths default to 1.0, matching R's ape behaviour.
+    """
+    from Bio import Phylo
+    import io
+
+    tree = Phylo.read(io.StringIO(newick_str), "newick")
+    for clade in tree.find_clades():
+        if clade.branch_length is None:
+            clade.branch_length = 1.0
+
+    terminals = tree.get_terminals()
+    n = len(terminals)
+    names = [t.name for t in terminals]
+    term_to_idx = {id(t): i for i, t in enumerate(terminals)}
+
+    dist = np.zeros((n, n))
+    leaf_depth = np.zeros(n)
+
+    def _dfs(clade: object, depth: float) -> List[int]:
+        if clade.is_terminal():
+            i = term_to_idx[id(clade)]
+            leaf_depth[i] = depth
+            return [i]
+
+        child_groups: List[List[int]] = [
+            _dfs(child, depth + (child.branch_length or 0.0))
+            for child in clade.clades
+        ]
+
+        # Pairs across different child subtrees have LCA = this clade
+        for g_a, group_a in enumerate(child_groups):
+            for group_b in child_groups[g_a + 1 :]:
+                for i in group_a:
+                    for j in group_b:
+                        d = leaf_depth[i] + leaf_depth[j] - 2.0 * depth
+                        dist[i, j] = d
+                        dist[j, i] = d
+
+        return [li for g in child_groups for li in g]
+
+    _dfs(tree.root, 0.0)
+    return names, dist
+
+
+def compute_knn_weights_from_tree(
+    newick: str,
+    obs_names: Optional[Sequence[str]] = None,
+    K: Optional[int] = None,
+) -> csr_matrix:
+    """Build exponential-kernel KNN weights from a phylogenetic tree.
+
+    Mirrors :func:`compute_knn_weights` but uses cophenetic (patristic)
+    distances between tree leaves instead of Euclidean latent-space distances.
+    This is the core of PhyloVision: the same Gaussian kernel and row
+    normalisation are applied, so all downstream autocorrelation and
+    differential analyses run unchanged.
+
+    Parameters
+    ----------
+    newick : str
+        Newick-format tree string.  All leaf labels must be cell barcodes.
+    obs_names : sequence of str, optional
+        Desired row/column order.  If provided the matrix is reordered to match
+        and leaves absent from *obs_names* are dropped.  If ``None``, tree leaf
+        order is used.
+    K : int, optional
+        Number of neighbors.  Defaults to ``round(sqrt(n_cells))``.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix of shape (n_cells, n_cells)
+        Row-normalised sparse weight matrix in *obs_names* order.
+    """
+    names, dist = _cophenetic_distance_matrix(newick)
+
+    if obs_names is not None:
+        name_to_idx = {name: i for i, name in enumerate(names)}
+        missing = [name for name in obs_names if name not in name_to_idx]
+        if missing:
+            raise ValueError(
+                f"{len(missing)} cells not found in tree leaves: {missing[:5]}..."
+            )
+        obs_idx = np.array([name_to_idx[name] for name in obs_names])
+        dist = dist[np.ix_(obs_idx, obs_idx)]
+
+    n = dist.shape[0]
+    if K is None:
+        K = max(1, round(np.sqrt(n)))
+
+    logger.info("Building tree KNN graph: n_cells=%d, K=%d.", n, K)
+
+    # K nearest neighbors (column 0 after sorting is self at dist=0 — skip it)
+    nn_idx = np.argsort(dist, axis=1)[:, 1 : K + 1]
+    nn_d = np.take_along_axis(dist, nn_idx, axis=1)
+
+    sigma = nn_d.max(axis=1, keepdims=True)
+    sigma[sigma == 0] = 1.0
+    W = np.exp(-(nn_d ** 2) / (sigma ** 2))
+    row_sums = W.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1.0
+    W /= row_sums
+
+    rows = np.repeat(np.arange(n), K)
+    cols = nn_idx.ravel()
+    weights = csr_matrix((W.ravel(), (rows, cols)), shape=(n, n))
+    logger.info("Tree KNN weight matrix built — nnz=%d.", weights.nnz)
+    return weights
+
+
+def compute_knn_weights_from_tree_anndata(
+    adata: AnnData,
+    newick: str,
+    K: Optional[int] = None,
+    obsp_key: str = "weights",
+) -> AnnData:
+    """Compute tree-based KNN weights and store in ``adata.obsp[obsp_key]``.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.  ``adata.obs_names`` must match leaf labels in
+        the Newick tree.
+    newick : str
+        Newick-format tree string.
+    K : int, optional
+        Number of neighbors.  Defaults to ``round(sqrt(n_cells))``.
+    obsp_key : str, optional
+        Destination key in ``adata.obsp``, by default ``"weights"``.
+
+    Returns
+    -------
+    AnnData (modified in-place)
+    """
+    weights = compute_knn_weights_from_tree(
+        newick, obs_names=adata.obs_names.tolist(), K=K
+    )
+    adata.obsp[obsp_key] = weights
+    logger.info(
+        "Tree KNN weights stored in adata.obsp['%s'] — shape %s.",
+        obsp_key,
+        weights.shape,
+    )
+    return adata
+
+
+def compute_knn_weights_from_tree_lca(
+    newick: str,
+    obs_names: Optional[Sequence[str]] = None,
+    min_size: int = 20,
+) -> csr_matrix:
+    """Build LCA-based uniform KNN weights from a phylogenetic tree.
+
+    For each cell, walks up the tree until the smallest enclosing clade
+    contains at least *min_size* other cells.  That clade's members become the
+    cell's neighbors with equal weight (row-normalised to 1).  This is the
+    ``lcaKNN=TRUE`` mode in R VISION's PhyloVision.
+
+    Note: R VISION's LCA weight matrix has an encoding inversion bug (it passes
+    membership indicators as distances, giving higher weight to *non*-clade
+    cells).  This implementation uses the correct semantics: uniform weights
+    within the clade, zero outside.
+
+    Parameters
+    ----------
+    newick : str
+        Newick-format tree string.  All leaf labels must be cell barcodes.
+    obs_names : sequence of str, optional
+        Desired row/column order.  If provided, the matrix is reordered/subset
+        to this order.  If ``None``, tree leaf order is used.
+    min_size : int, optional
+        Minimum number of neighbors (excluding self) required before a clade is
+        accepted.  Default 20, matching R VISION's ``minSize`` default.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix of shape (n_cells, n_cells)
+        Row-normalised sparse weight matrix.
+    """
+    from Bio import Phylo
+    import io
+
+    tree = Phylo.read(io.StringIO(newick), "newick")
+    terminals = tree.get_terminals()
+    tree_names = [t.name for t in terminals]
+
+    if obs_names is not None:
+        obs_names_list = list(obs_names)
+        tree_name_set = set(tree_names)
+        missing = [n for n in obs_names_list if n not in tree_name_set]
+        if missing:
+            raise ValueError(
+                f"{len(missing)} cells not found in tree leaves: {missing[:5]}..."
+            )
+    else:
+        obs_names_list = tree_names
+
+    obs_set = set(obs_names_list)
+    obs_name_to_idx = {name: i for i, name in enumerate(obs_names_list)}
+    n = len(obs_names_list)
+
+    # Build parent dict (id → parent clade)
+    parent: dict = {}
+
+    def _build_parents(clade, par) -> None:
+        parent[id(clade)] = par
+        for child in clade.clades:
+            _build_parents(child, clade)
+
+    _build_parents(tree.root, None)
+    name_to_term = {t.name: t for t in terminals}
+
+    logger.info("Building LCA KNN graph: n_cells=%d, min_size=%d.", n, min_size)
+
+    rows, cols, vals = [], [], []
+    for leaf_name in obs_names_list:
+        leaf = name_to_term[leaf_name]
+        row_i = obs_name_to_idx[leaf_name]
+
+        # Walk up until the clade has > min_size leaves (counting all tree leaves)
+        node = leaf
+        while True:
+            par = parent[id(node)]
+            if par is None:
+                break          # reached root — use whatever clade we have
+            node = par
+            if len(node.get_terminals()) > min_size:
+                break
+
+        # Uniform weight to all observed cells in clade, excluding self
+        clade_obs = [
+            t.name
+            for t in node.get_terminals()
+            if t.name in obs_set and t.name != leaf_name
+        ]
+        w = 1.0 / len(clade_obs) if clade_obs else 0.0
+        for neighbor_name in clade_obs:
+            rows.append(row_i)
+            cols.append(obs_name_to_idx[neighbor_name])
+            vals.append(w)
+
+    weights = csr_matrix(
+        (np.array(vals), (np.array(rows, dtype=np.intp), np.array(cols, dtype=np.intp))),
+        shape=(n, n),
+    )
+    logger.info("LCA KNN weight matrix built — nnz=%d.", weights.nnz)
+    return weights
+
+
+def compute_knn_weights_from_tree_lca_anndata(
+    adata: AnnData,
+    newick: str,
+    min_size: int = 20,
+    obsp_key: str = "weights",
+) -> AnnData:
+    """Compute LCA-based tree KNN weights and store in ``adata.obsp[obsp_key]``.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.  ``adata.obs_names`` must match leaf labels in
+        the Newick tree.
+    newick : str
+        Newick-format tree string.
+    min_size : int, optional
+        Minimum clade size (excluding self).  Default 20.
+    obsp_key : str, optional
+        Destination key in ``adata.obsp``, by default ``"weights"``.
+
+    Returns
+    -------
+    AnnData (modified in-place)
+    """
+    weights = compute_knn_weights_from_tree_lca(
+        newick, obs_names=adata.obs_names.tolist(), min_size=min_size
+    )
+    adata.obsp[obsp_key] = weights
+    logger.info(
+        "LCA KNN weights stored in adata.obsp['%s'] — shape %s.",
+        obsp_key,
+        weights.shape,
+    )
+    return adata
+
+
+# ---------------------------------------------------------------------------
+# AnnData wrapper (coordinate-based)
 # ---------------------------------------------------------------------------
 
 def compute_knn_weights_anndata(

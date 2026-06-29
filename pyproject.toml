@@ -37,6 +37,9 @@ dependencies = [
 gpu = [
     "pynndescent",
 ]
+phylo = [
+    "biopython>=1.79",
+]
 dev = [
     # CLI for bumping the version number
     "bump2version",

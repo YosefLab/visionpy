@@ -274,8 +274,12 @@ class AnnDataAccessor:
         # AnnData requires ≥1 variable; use a zeros placeholder when there are
         # no numeric metadata columns so categorical chi-squared still runs.
         obs_X = np.log1p(numeric_data.to_numpy()) if n_numeric > 0 else np.zeros((self.adata.n_obs, 1))
-        obs_adata = anndata.AnnData(obs_X)
-        obs_adata.obs = self.adata.obs.loc[:, self.cat_obs_cols].copy()
+        obs_var_names = list(numeric_data.columns) if n_numeric > 0 else ["_placeholder"]
+        obs_adata = anndata.AnnData(
+            X=obs_X,
+            var=pd.DataFrame(index=obs_var_names),
+            obs=self.adata.obs.loc[:, self.cat_obs_cols].copy(),
+        )
         for c in self.cat_obs_cols:
             try:
                 if n_numeric > 0:
