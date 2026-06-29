@@ -47,7 +47,7 @@ def get_projection_list():
         if k[:2] == "X_":
             name = k.split("_")[1]
             proj_dict[k] = [name.upper() + f"{i + 1}" for i in range(adata.obsm[k].shape[1])]
-    # Obs_metadata: only numeric columns without NaN (trajectory position cols have NaN)
+    # Obs_metadata: skip numeric columns that contain NaN
     valid_cols = [c for c in data_accessor.numeric_obs_cols if not adata.obs[c].isna().any()]
     if valid_cols:
         proj_dict["Obs_metadata"] = valid_cols
@@ -75,99 +75,11 @@ def get_projection_column(proj_name, proj_col):
     return jsonify([[c, b] for c, b in zip(data, barcodes)])
 
 
-@bp.route("/Tree/Projections/list", methods=["GET"])
-def get_tree_projection_list():
-    projs = adata.uns.get("vision_trajectory_projections", {})
-    return jsonify(list(projs.keys()))
-
-
-@bp.route("/Tree/Projections/<proj_name>/coordinates", methods=["GET"])
-def get_tree_projection_coordinates(proj_name):
-    projs = adata.uns.get("vision_trajectory_projections", {})
-    if proj_name not in projs:
-        return jsonify([]), 404
-
-    proj   = projs[proj_name]
-    p_data = np.array(proj["p_data"])     # (n_cells, 2)
-    v_data = np.array(proj["v_data"])     # (n_milestones, 2)
-    adj_bin = np.array(proj["adj_binary"])  # (n_milestones, n_milestones)
-    cell_ids = proj["cell_ids"]
-
-    # Format expected by the VISION frontend:
-    # [ [[x, y, cell_id], ...], [[x, y], ...], [[0/1, ...], ...] ]
-    coords = [
-        [float(p_data[i, 0]), float(p_data[i, 1]), cell_ids[i]]
-        for i in range(len(cell_ids))
-    ]
-    return jsonify([coords, v_data.tolist(), adj_bin.tolist()])
-
-
-@bp.route("/Tree/SigProjMatrix/Normal", methods=["GET"])
-def get_tree_sigprojmatrix_normal():
-    traj_ac = adata.uns.get("vision_trajectory_autocorr", {})
-    sig_labels, stats, pvals = [], [], []
-
-    if "Signatures" in traj_ac:
-        df = traj_ac["Signatures"]
-        sig_labels += df.index.tolist()
-        stats += [[v] for v in df["c_prime"].tolist()]
-        pvals += [[v] for v in df["fdr"].tolist()]
-
-    if "Meta" in traj_ac:
-        df = traj_ac["Meta"]
-        num_only = df.loc[df.index.isin(data_accessor.numeric_obs_cols)]
-        sig_labels += num_only.index.tolist()
-        stats += [[v] for v in num_only["c_prime"].tolist()]
-        pvals += [[v] for v in num_only["fdr"].tolist()]
-
-    matrix = ServerSigProjMatrix(
-        sig_labels=sig_labels, proj_labels=["Score"],
-        zscores=stats, pvals=pvals,
-    )
-    return jsonify(matrix.prepare_json())
-
-
-@bp.route("/Tree/SigProjMatrix/Meta", methods=["GET"])
-def get_tree_sigprojmatrix_meta():
-    traj_ac = adata.uns.get("vision_trajectory_autocorr", {})
-    sig_labels, stats, pvals = [], [], []
-
-    if "Meta" in traj_ac:
-        df = traj_ac["Meta"]
-        sig_labels = df.index.tolist()
-        stats = [[v] for v in df["c_prime"].tolist()]
-        pvals = [[v] for v in df["fdr"].tolist()]
-
-    matrix = ServerSigProjMatrix(
-        sig_labels=sig_labels, proj_labels=["Score"],
-        zscores=stats, pvals=pvals,
-    )
-    return jsonify(matrix.prepare_json())
-
-
-@bp.route("/Tree/ProteinMatrix", methods=["GET"])
-def get_tree_protein_matrix():
-    traj_ac = adata.uns.get("vision_trajectory_autocorr", {})
-    sig_labels, stats, pvals = [], [], []
-
-    if "Proteins" in traj_ac:
-        df = traj_ac["Proteins"]
-        sig_labels = df.index.tolist()
-        stats = [[v] for v in df["c_prime"].tolist()]
-        pvals = [[v] for v in df["fdr"].tolist()]
-
-    matrix = ServerSigProjMatrix(
-        sig_labels=sig_labels, proj_labels=["Score"],
-        zscores=stats, pvals=pvals,
-    )
-    return jsonify(matrix.prepare_json())
-
-
 @bp.route("/SessionInfo", methods=["GET"])
 def get_session_info():
     info = {}
     info["name"] = adata.uns["vision_session_name"]
-    info["has_tree"] = bool(adata.uns.get("vision_trajectory_projections"))
+    info["has_tree"] = False
     info["meta_sigs"] = adata.obs.columns.tolist()
     # info[["pooled"]] <- object@params$micropooling$pool
     info["pooled"] = False
