@@ -597,8 +597,16 @@ def split_signed_signatures(
     if not isinstance(sig_mat, pd.DataFrame):
         sig_mat = pd.DataFrame(sig_mat, index=adata.var_names)
 
+    existing = set(sig_mat.columns)
     extra_cols: dict = {}
     for col in sig_mat.columns:
+        # Skip derived sub-signatures from a prior call (idempotency guard).
+        # Bidirectional originals have both pos and neg weights, so they would
+        # re-trigger the split if the varm is inherited from a prior analysis run.
+        if col.endswith("_UP") or col.endswith("_DOWN"):
+            continue
+        if f"{col}_UP" in existing:
+            continue
         col_vals = sig_mat[col]
         has_up = (col_vals > 0).any()
         has_dn = (col_vals < 0).any()

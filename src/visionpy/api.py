@@ -16,6 +16,7 @@ from .knn import (
     compute_knn_weights_from_tree_lca_anndata,
 )
 from .microclusters import apply_micro_clustering
+from .phylo import cluster_cells_tree
 from .projections import _ALL_PROJECTION_METHODS, compute_latent_space, generate_projections
 from .signature import compute_signatures_anndata, split_signed_signatures
 
@@ -232,6 +233,8 @@ def _prepare_vision(
         else:
             compute_knn_weights_from_tree_anndata(adata, newick_str, K=num_neighbors)
         adata.uns["vision_tree"] = newick_str
+        # Tree-based cell clustering (VISION_Clusters_Tree)
+        cluster_cells_tree(adata, newick_str)
     elif compute_neighbors_on_key is not None:
         compute_knn_weights_anndata(adata, obsm_key=compute_neighbors_on_key, K=num_neighbors, exact=exact_knn)
         _neighbors_key = compute_neighbors_on_key

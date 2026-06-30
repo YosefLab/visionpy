@@ -20,7 +20,7 @@ from .knn import (
     compute_knn_weights_from_tree_lca_anndata,
     find_knn,
 )
-from .phylo import compute_plasticity_scores
+from .phylo import cluster_cells_tree, compute_plasticity_scores
 from .microclusters import apply_micro_clustering, pool_matrix, pool_matrix_anndata, pool_metadata, pool_metadata_anndata
 from .normalization import NormData, get_normalized_copy, get_normalized_copy_sparse
 from .projections import (
