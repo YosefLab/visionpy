@@ -260,7 +260,7 @@ def get_sigprojmatrix_meta(cluster_variable):
         for cat_c in data_accessor.cat_obs_cols:
             if cat_c not in sig_labels:
                 continue
-            key = f"chi_sq_{cluster_variable}_{p}"
+            key = f"chi_sq_{cat_c}_{p}"
             if key in obs_adata.uns:
                 sigs_by_projs_stats.loc[cat_c, p] = obs_adata.uns[key]["stat"]
                 sigs_by_projs_pvals.loc[cat_c, p] = obs_adata.uns[key]["pval"]

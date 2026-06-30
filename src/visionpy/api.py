@@ -299,8 +299,11 @@ def _prepare_vision(
     # 6. Optional signature scoring pipeline
     # ------------------------------------------------------------------
     if signature_varm_key is not None:
-        # Auto-expand bidirectional signatures into _UP / _DOWN sub-columns
-        split_signed_signatures(adata, varm_key=signature_varm_key)
+        # Auto-expand bidirectional signatures into _UP / _DOWN sub-columns.
+        # Pass the uns sig names so integer-indexed numpy varm arrays get
+        # proper string column names before the split.
+        _uns_sig_names = adata.uns.get(signature_names_uns_key) if signature_names_uns_key else None
+        split_signed_signatures(adata, varm_key=signature_varm_key, sig_names=_uns_sig_names)
         compute_signatures_anndata(
             adata,
             norm_data_key,
@@ -591,7 +594,11 @@ def add_signatures(
     )
 
     # Recompute autocorrelation, differential, dendrogram, LCA
-    accessor = AnnDataAccessor(adata)
+    accessor = AnnDataAccessor(
+        adata,
+        norm_data_key=norm_data_key,
+        signature_varm_key=adata.uns.get("signature_varm_key", "signatures"),
+    )
     accessor.sig_adata = None  # reset cached adata
     accessor.compute_signature_scores()
     accessor.compute_one_vs_all_signatures()

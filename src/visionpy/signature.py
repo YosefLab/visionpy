@@ -577,13 +577,14 @@ def signatures_from_file(
 def split_signed_signatures(
     adata: AnnData,
     varm_key: str = "signatures",
+    sig_names: Optional[list] = None,
 ) -> None:
     """Auto-split bidirectional signatures into ``_UP`` / ``_DOWN`` sub-signatures.
 
     For each column in ``adata.varm[varm_key]`` that contains both +1 and -1
     weights, two additional columns are appended:
     - ``{name}_UP``:   +1 for up-regulated genes, 0 elsewhere.
-    - ``{name}_DOWN``: +1 for down-regulated genes (sign flipped), 0 elsewhere.
+    - ``{name}_DOWN``: −1 for down-regulated genes (preserving R's _DN weight convention), 0 elsewhere.
 
     The original bidirectional column is preserved so the combined score
     remains available alongside the split sub-signatures.
@@ -595,7 +596,9 @@ def split_signed_signatures(
 
     sig_mat = adata.varm[varm_key]
     if not isinstance(sig_mat, pd.DataFrame):
-        sig_mat = pd.DataFrame(sig_mat, index=adata.var_names)
+        n = sig_mat.shape[1]
+        columns = sig_names if (sig_names is not None and len(sig_names) == n) else None
+        sig_mat = pd.DataFrame(sig_mat, index=adata.var_names, columns=columns)
 
     existing = set(sig_mat.columns)
     extra_cols: dict = {}
@@ -603,9 +606,10 @@ def split_signed_signatures(
         # Skip derived sub-signatures from a prior call (idempotency guard).
         # Bidirectional originals have both pos and neg weights, so they would
         # re-trigger the split if the varm is inherited from a prior analysis run.
-        if col.endswith("_UP") or col.endswith("_DOWN"):
+        col_str = str(col)
+        if col_str.endswith("_UP") or col_str.endswith("_DOWN"):
             continue
-        if f"{col}_UP" in existing:
+        if f"{col_str}_UP" in existing:
             continue
         col_vals = sig_mat[col]
         has_up = (col_vals > 0).any()
@@ -835,12 +839,13 @@ def compute_signatures_anndata(
         gene_expr = adata.layers[norm_data_key]
 
     sig_mat_raw = adata.varm[signature_varm_key] if not use_raw else adata.raw.varm[signature_varm_key]
-    if signature_names_uns_key is not None:
+    n_sigs = sig_mat_raw.shape[1]
+    if signature_names_uns_key is not None and len(adata.uns[signature_names_uns_key]) == n_sigs:
         cols = adata.uns[signature_names_uns_key]
     elif isinstance(sig_mat_raw, pd.DataFrame):
         cols = sig_mat_raw.columns.tolist()
     else:
-        cols = [f"signature_{i}" for i in range(sig_mat_raw.shape[1])]
+        cols = [f"signature_{i}" for i in range(n_sigs)]
 
     if issparse(gene_expr):
         # ── sparse path: NormData + GPU-accelerated batch scoring ──────────
