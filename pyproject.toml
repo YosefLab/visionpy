@@ -8,7 +8,7 @@ name = "visionpy-sc"
 version = "0.2.0"
 description = "Signature Analysis and Visualization for Single-Cell RNA-seq"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {file = "LICENSE"}
 authors = [
     {name = "Adam Gayoso"},
@@ -83,7 +83,7 @@ xfail_strict = true
 [tool.ruff]
 src = ["src"]
 line-length = 119
-target-version = "py38"
+target-version = "py39"
 select = [
     "F",  # Errors detected by Pyflakes
     "E",  # Error detected by Pycodestyle
@@ -135,7 +135,7 @@ ignore = [
 
 [tool.black]
 line-length = 120
-target-version = ['py38']
+target-version = ['py39']
 include = '\.pyi?$'
 exclude = '''
 (
